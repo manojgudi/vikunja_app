@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+X-Nemo-Application-Type=silica-qt5
+Icon=harbour-vikunja
+Exec=/usr/bin/harbour-vikunja
+Name=Vikunja
+Comment=Tasks and kanban boards for your Vikunja server
+
+[X-Sailjail]
+OrganizationName=io.github.manojgudi
+ApplicationName=harbour-vikunja
+Permissions=Internet;Notifications;Secrets;Downloads

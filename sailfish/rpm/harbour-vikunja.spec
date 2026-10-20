@@ -7,7 +7,6 @@ URL:        https://github.com/manojgudi/vikunja_app
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfishsilica-qt5 >= 0.10.9
 Requires:   nemo-qml-plugin-notifications-qt5
-Requires:   libsailfishsecrets
 BuildRequires:  pkgconfig(sailfishapp) >= 1.0.2
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
@@ -41,3 +40,8 @@ desktop-file-install --delete-original \
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
+
+%changelog
+* Tue Oct 20 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.1.0-1
+- First Sailfish OS release: projects, tasks, kanban, labels, comments,
+  attachments, reminders, cover; Sailfish Secrets token storage, TLS pinning.

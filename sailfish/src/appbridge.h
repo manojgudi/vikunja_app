@@ -1,12 +1,15 @@
 #ifndef APPBRIDGE_H
 #define APPBRIDGE_H
 
+#include <QDBusContext>
 #include <QObject>
 #include <QString>
 
 // Small D-Bus entry point so notification actions ("Open", "Mark done")
-// can reach the running app. Only simple integer task ids are accepted.
-class AppBridge : public QObject
+// can reach the running app. Only simple integer task ids are accepted, and
+// "mark done" is only honoured when the call comes from the notification
+// server (lipstick), not from arbitrary processes on the session bus.
+class AppBridge : public QObject, protected QDBusContext
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "io.github.manojgudi.harbourvikunja")
@@ -35,6 +38,8 @@ signals:
     void markDoneRequested(int taskId);
 
 private:
+    bool callerAllowed();
+
     QString m_service;
 };
 

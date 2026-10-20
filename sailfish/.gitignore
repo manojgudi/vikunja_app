@@ -1,0 +1,8 @@
+RPMS/
+*.o
+moc_*
+Makefile
+.qmake.stash
+/harbour-vikunja
+.mb2/
+documentation.list

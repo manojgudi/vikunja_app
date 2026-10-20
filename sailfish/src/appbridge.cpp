@@ -1,6 +1,8 @@
 #include "appbridge.h"
 
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -44,6 +46,17 @@ bool AppBridge::openFile(const QString &path)
     return QDesktopServices::openUrl(QUrl::fromLocalFile(info.canonicalFilePath()));
 }
 
+bool AppBridge::callerAllowed()
+{
+    if (!calledFromDBus())
+        return true;
+    const QDBusReply<QString> owner = connection().interface()->serviceOwner(QStringLiteral("org.freedesktop.Notifications"));
+    const bool ok = owner.isValid() && owner.value() == message().service();
+    if (!ok)
+        qWarning("Ignoring D-Bus call from %s", qPrintable(message().service()));
+    return ok;
+}
+
 void AppBridge::activate()
 {
     emit activateRequested();
@@ -51,12 +64,13 @@ void AppBridge::activate()
 
 void AppBridge::openTask(int taskId)
 {
+    // Opening a task only shows it, so any caller may do that.
     if (taskId > 0)
         emit openTaskRequested(taskId);
 }
 
 void AppBridge::markDone(int taskId)
 {
-    if (taskId > 0)
+    if (taskId > 0 && callerAllowed())
         emit markDoneRequested(taskId);
 }

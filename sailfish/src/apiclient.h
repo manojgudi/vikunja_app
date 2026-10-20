@@ -86,6 +86,10 @@ public:
     Q_INVOKABLE void trustCertificate(const QString &host, int port, const QString &sha256);
     Q_INVOKABLE QVariantList trustedCertificates();
     Q_INVOKABLE void forgetCertificate(const QString &hostPort);
+    // Non-sensitive preferences (theme of the UI, reminder options, ...).
+    Q_INVOKABLE QVariant setting(const QString &key, const QVariant &defaultValue = QVariant()) const;
+    Q_INVOKABLE void setSetting(const QString &key, const QVariant &value);
+
     Q_INVOKABLE void allowInsecureHost(const QString &host);
     Q_INVOKABLE QStringList insecureHosts();
     Q_INVOKABLE void forgetInsecureHost(const QString &host);

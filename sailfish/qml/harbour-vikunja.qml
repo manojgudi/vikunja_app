@@ -1,0 +1,155 @@
+import QtQuick 2.0
+import Sailfish.Silica 1.0
+import "pages"
+import "cover"
+import "components"
+import "js/util.js" as Util
+
+ApplicationWindow {
+    id: app
+
+    property var currentUser: null
+    property var projects: []
+    property var labels: []
+    property int defaultProjectId: currentUser && currentUser.settings ? (currentUser.settings.default_project_id || 0) : 0
+    property bool hideDetails: api.setting("hideDetails", false) === true || api.setting("hideDetails", false) === "true"
+
+    // Bumped whenever tasks change somewhere so open lists can refresh.
+    property int taskRevision: 0
+    property int projectRevision: 0
+
+    property alias reminders: reminderService
+
+    signal taskChanged(int taskId)
+
+    initialPage: Component { StartupPage { } }
+    cover: Component { CoverPage { } }
+    allowedOrientations: defaultAllowedOrientations
+
+    function notify(text) {
+        banner.show(text)
+    }
+
+    function showError(result, fallback) {
+        notify(result && result.error ? result.error : (fallback || qsTr("Something went wrong")))
+    }
+
+    function projectById(id) {
+        for (var i = 0; i < projects.length; ++i)
+            if (projects[i].id === id)
+                return projects[i]
+        return null
+    }
+
+    function projectTitle(id) {
+        var p = projectById(id)
+        return p ? p.title : ""
+    }
+
+    function loadUser(callback) {
+        api.request("GET", "/user", {}, null, function(r) {
+            if (r.ok)
+                currentUser = r.data
+            if (callback) callback(r)
+        })
+    }
+
+    function loadProjects(callback) {
+        var all = []
+        function page(n) {
+            api.request("GET", "/projects", { page: n, per_page: 50, is_archived: "true" }, null, function(r) {
+                if (!r.ok) {
+                    if (callback) callback(r)
+                    return
+                }
+                all = all.concat(r.data || [])
+                if (r.totalPages > n) {
+                    page(n + 1)
+                } else {
+                    projects = all
+                    projectRevision++
+                    if (callback) callback(r)
+                }
+            })
+        }
+        page(1)
+    }
+
+    function loadLabels(callback) {
+        api.request("GET", "/labels", { per_page: 200 }, null, function(r) {
+            if (r.ok)
+                labels = r.data || []
+            if (callback) callback(r)
+        })
+    }
+
+    function setTaskDone(task, done, callback) {
+        var t = Util.clone(task)
+        t.done = done
+        api.request("POST", "/tasks/" + task.id, {}, t, function(r) {
+            if (r.ok) {
+                taskRevision++
+                taskChanged(task.id)
+            } else {
+                showError(r)
+            }
+            if (callback) callback(r)
+        })
+    }
+
+    function openTask(taskId) {
+        pageStack.push(Qt.resolvedUrl("pages/TaskPage.qml"), { taskId: taskId })
+    }
+
+    function openAddTask(projectId, bucketId) {
+        var dialog = pageStack.push(Qt.resolvedUrl("pages/AddTaskDialog.qml"),
+                                    { projectId: projectId || defaultProjectId || (projects.length ? projects[0].id : 0),
+                                      bucketId: bucketId || 0 })
+        return dialog
+    }
+
+    function signedOut() {
+        currentUser = null
+        projects = []
+        labels = []
+        reminderService.clear()
+        pageStack.clear()
+        pageStack.push(Qt.resolvedUrl("pages/LoginPage.qml"), {}, PageStackAction.Immediate)
+    }
+
+    Connections {
+        target: api
+        onSessionExpired: {
+            app.notify(qsTr("Your session has expired or the token was revoked. Please sign in again."))
+            api.logout()
+            app.signedOut()
+        }
+    }
+
+    Connections {
+        target: appBridge
+        onActivateRequested: app.activate()
+        onOpenTaskRequested: {
+            app.activate()
+            if (api.authenticated)
+                app.openTask(taskId)
+        }
+        onMarkDoneRequested: {
+            if (!api.authenticated)
+                return
+            api.request("GET", "/tasks/" + taskId, {}, null, function(r) {
+                if (r.ok)
+                    app.setTaskDone(r.data, true)
+            })
+        }
+    }
+
+    ReminderService {
+        id: reminderService
+        active: api.authenticated
+    }
+
+    Banner {
+        id: banner
+    }
+}

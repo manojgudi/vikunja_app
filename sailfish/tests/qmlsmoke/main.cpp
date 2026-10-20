@@ -1,0 +1,72 @@
+// Loads the real app QML with the real C++ backend, walks through every
+// page against a live server and fails on any QML warning or JS error.
+// Run with QT_QPA_PLATFORM=minimal: nothing is rendered, but every page is
+// instantiated and its bindings and handlers are evaluated.
+#include <QGuiApplication>
+#include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlEngine>
+#include <QStringList>
+#include <QTimer>
+#include <cstdio>
+
+#include "apiclient.h"
+#include "appbridge.h"
+#include "securestore.h"
+#include "textutil.h"
+
+static QStringList problems;
+
+static void handler(QtMsgType type, const QMessageLogContext &, const QString &msg)
+{
+    fprintf(stderr, "%s\n", qPrintable(msg));
+    if (msg.startsWith(QLatin1String("SMOKE:")))
+        return;
+    if (type != QtDebugMsg && type != QtInfoMsg
+            && (msg.contains(QLatin1String(".qml")) || msg.contains(QLatin1String(".js"))
+                || msg.contains(QLatin1String("Error"))))
+        problems << msg;
+}
+
+int main(int argc, char **argv)
+{
+    qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
+    qInstallMessageHandler(handler);
+    QGuiApplication app(argc, argv);
+    app.setOrganizationName(QStringLiteral("harbour-vikunja-smoke"));
+    app.setApplicationName(QStringLiteral("smoke"));
+
+    const QString qmlDir = QString::fromLocal8Bit(qgetenv("SMOKE_QML_DIR"));
+    SecureStore store;
+    store.init();
+    ApiClient api(&store);
+    Util util;
+    AppBridge bridge;
+
+    QQmlEngine engine;
+    QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
+    api.setEngine(&engine);
+    engine.rootContext()->setContextProperty(QStringLiteral("api"), &api);
+    engine.rootContext()->setContextProperty(QStringLiteral("util"), &util);
+    engine.rootContext()->setContextProperty(QStringLiteral("appBridge"), &bridge);
+    engine.rootContext()->setContextProperty(QStringLiteral("appVersion"), QStringLiteral("smoke"));
+    engine.rootContext()->setContextProperty(QStringLiteral("smokeUrl"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_URL")));
+    engine.rootContext()->setContextProperty(QStringLiteral("smokeToken"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_TOKEN")));
+    engine.rootContext()->setContextProperty(QStringLiteral("smokeQmlDir"), qmlDir);
+
+    QQmlComponent driver(&engine, QUrl::fromLocalFile(QString::fromLocal8Bit(qgetenv("SMOKE_DRIVER"))));
+    QObject *obj = driver.create();
+    if (!obj) {
+        for (const QQmlError &e : driver.errors())
+            fprintf(stderr, "%s\n", qPrintable(e.toString()));
+        return 2;
+    }
+    QTimer::singleShot(180000, &app, &QCoreApplication::quit);
+    app.exec();
+    const bool finished = obj->property("finished").toBool();
+    const int steps = obj->property("steps").toInt();
+    fprintf(stderr, "\nSMOKE RESULT: %d steps, finished=%d, %d problem(s)\n", steps, finished, problems.size());
+    for (const QString &p : problems)
+        fprintf(stderr, "  PROBLEM: %s\n", qPrintable(p));
+    return (finished && problems.isEmpty()) ? 0 : 1;
+}

@@ -647,3 +647,13 @@ void ApiClient::forgetInsecureHost(const QString &host)
     m_settings.setValue(QStringLiteral("tls/insecureHosts"), hosts);
     m_settings.sync();
 }
+
+QVariant ApiClient::setting(const QString &key, const QVariant &defaultValue) const
+{
+    return m_settings.value(QStringLiteral("prefs/") + key, defaultValue);
+}
+
+void ApiClient::setSetting(const QString &key, const QVariant &value)
+{
+    m_settings.setValue(QStringLiteral("prefs/") + key, value);
+}

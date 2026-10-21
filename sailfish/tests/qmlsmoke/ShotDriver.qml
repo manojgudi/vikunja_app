@@ -1,0 +1,84 @@
+import QtQuick 2.0
+
+// Screenshots of pages for checking the layout. Needs a Wayland compositor
+// (e.g. weston --backend=headless) and QT_QPA_PLATFORM=wayland-egl.
+// SMOKE_PHASE: space-separated page file names to capture.
+QtObject {
+    id: driver
+    property var win: null
+    property bool finished: false
+    property int steps: 0
+    property var queue: []
+
+    function log(m) { console.log("SMOKE: " + m) }
+
+    property Timer timer: Timer { interval: 3000; onTriggered: driver.next() }
+
+    function next() {
+        if (queue.length === 0) { finished = true; Qt.quit(); return }
+        var name = queue.shift()
+        steps++
+        if (name.indexOf("scroll:") === 0) {
+            var flick = findFlickable(win.pageStack.currentPage)
+            if (flick) flick.contentY = Math.min(parseInt(name.substring(7)), Math.max(0, flick.contentHeight - flick.height))
+            timer.start()
+            return
+        }
+        if (name.indexOf("theme:") === 0) {
+            win.setThemeMode(name.substring(6))
+            timer.start()
+            return
+        }
+        if (name.indexOf("task:") === 0) {
+            win.openTask(parseInt(name.substring(5)))
+            timer.start()
+            return
+        }
+        if (name.indexOf("project:") === 0) {
+            win.pageStack.push(Qt.resolvedUrl(smokeQmlDir + "/pages/ProjectPage.qml"), { projectId: parseInt(name.substring(8)) }, 1)
+            timer.start()
+            return
+        }
+        if (name === "edit") {
+            win.pageStack.currentPage.edit()
+            timer.start()
+            return
+        }
+        if (name === "add") {
+            win.openAddTask()
+            timer.start()
+            return
+        }
+        if (name.indexOf("pop") === 0) {
+            win.pageStack.pop(undefined, 1)
+            timer.start()
+            return
+        }
+        if (name.indexOf("shot:") === 0) {
+            var file = shotDir + "/" + name.substring(5) + ".png"
+            win.grabToImage(function(r) { r.saveToFile(file); driver.log("saved " + file); timer.start() })
+            return
+        }
+        win.pageStack.push(Qt.resolvedUrl(smokeQmlDir + "/pages/" + name + ".qml"), {}, 1)
+        timer.start()
+    }
+
+    function findFlickable(item) {
+        if (!item) return null
+        for (var i = 0; i < item.children.length; ++i) {
+            var c = item.children[i]
+            if (c.contentHeight !== undefined && c.contentY !== undefined) return c
+            var f = findFlickable(c)
+            if (f) return f
+        }
+        return null
+    }
+
+    Component.onCompleted: {
+        win = smokeRoot
+        queue = smokePhase.split(" ")
+        timer.interval = 6000
+        timer.start()
+        timer.interval = 3000
+    }
+}

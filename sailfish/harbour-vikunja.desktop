@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+# Not a booster type: boosters load the app into a shared booster process,
+# which Sailfish Secrets then sees as a different owner than the D-Bus start.
+X-Nemo-Application-Type=generic
+Icon=harbour-vikunja
+Exec=/usr/bin/harbour-vikunja
+Name=Vikunja
+Comment=Tasks and kanban boards for your Vikunja server
+
+[X-Sailjail]
+OrganizationName=io.github.manojgudi
+ApplicationName=harbour-vikunja
+Permissions=Internet;Notifications;Secrets;Downloads;Pictures;Documents;Videos;Music;MediaIndexing
+ExecDBus=/usr/bin/harbour-vikunja -prestart

@@ -1,4 +1,5 @@
 import QtQuick 2.0
+import "../../qml/js/util.js" as Util
 
 // Starts the real app QML once per process, so several runs in a row act
 // like closing and reopening the app. SMOKE_PHASE picks what this run checks:
@@ -53,6 +54,32 @@ QtObject {
                     win.pageStack.replace(Qt.resolvedUrl(smokeQmlDir + "/pages/HomePage.qml"), {}, 1)
                     win.askStorageChoice()
                     prompt.start()
+                })
+            } else if (smokePhase === "cover") {
+                // Needs open tasks due later today on the server.
+                // 14:00 with five tasks due today at different times, one
+                // overdue from the morning, one tomorrow and one done.
+                var base = new Date(2026, 9, 21, 14, 0, 0)
+                function at(h, m, extra) {
+                    var t = { due_date: new Date(2026, 9, 21, h, m).toISOString(), done: false }
+                    for (var k in extra) t[k] = extra[k]
+                    return t
+                }
+                var c = Util.coverCounts([at(9, 0), at(14, 30), at(16, 0), at(18, 15), at(20, 0), at(23, 59),
+                                          { due_date: new Date(2026, 9, 22, 9, 0).toISOString(), done: false },
+                                          at(15, 0, { done: true })], base)
+                driver.steps++
+                driver.log("cover: " + c.today + " due later today, " + c.overdue + " overdue")
+                if (c.today !== 5 || c.overdue !== 1)
+                    console.error("Error: cover counts wrong")
+                // And against the server (needs a task due later today).
+                api.request("GET", "/tasks", { filter: "done = false && due_date < now+2d", filter_include_nulls: "false" }, null, function(r) {
+                    driver.log("cover (server): ok=" + r.ok + " status=" + r.status + " tasks=" + (r.data ? r.data.length : -1) + " " + r.error)
+                    var live = Util.coverCounts(r.data || [], new Date())
+                    driver.log("cover (server): " + live.today + " due later today, " + live.overdue + " overdue")
+                    if (live.today < 1)
+                        console.error("Error: cover counts no task due later today")
+                    driver.done()
                 })
             } else if (smokePhase === "stale") {
                 win.pageStack.replace(Qt.resolvedUrl(smokeQmlDir + "/pages/LoginPage.qml"), {}, 1)

@@ -201,16 +201,21 @@ QUrl ApiClient::apiUrl(const QString &base, const QString &path, const QVariantM
 {
     QUrl url(base + QStringLiteral("/api/v1") + path);
     if (!query.isEmpty()) {
-        QUrlQuery q;
+        // Encoded by hand: QUrlQuery leaves "+" as is, and servers read a
+        // bare "+" as a space, which broke filters such as "now+7d".
+        QStringList parts;
+        auto add = [&parts](const QString &key, const QString &value) {
+            parts << QString::fromLatin1(QUrl::toPercentEncoding(key) + '=' + QUrl::toPercentEncoding(value));
+        };
         for (auto it = query.constBegin(); it != query.constEnd(); ++it) {
             if (it.value().type() == QVariant::List || it.value().type() == QVariant::StringList) {
                 for (const QVariant &v : it.value().toList())
-                    q.addQueryItem(it.key(), v.toString());
+                    add(it.key(), v.toString());
             } else {
-                q.addQueryItem(it.key(), it.value().toString());
+                add(it.key(), it.value().toString());
             }
         }
-        url.setQuery(q);
+        url.setQuery(parts.join(QLatin1Char('&')), QUrl::StrictMode);
     }
     return url;
 }

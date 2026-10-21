@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.6
+Version:    0.2.7
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -40,8 +40,18 @@ desktop-file-install --delete-original \
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
+%{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.7-1
+- Opening from a reminder keeps you signed in: Secrets treats a reminder
+  start and a launcher start as different apps, so the token is now split
+  into a random pad in the app's private folder and token XOR pad in a
+  Secrets collection both starts can read. Existing sign-ins are moved.
+- Reminders play a short alert tone (vibration when silent) and show a
+  banner.
+- Cover counts open tasks still due later today, plus overdue ones, and
+  refreshes every minute.
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.6-1
 - Session diagnostics log (~/.cache/io.github.manojgudi/harbour-vikunja/session.log,
   no tokens or task data) to trace starts from reminders.

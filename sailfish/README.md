@@ -10,7 +10,7 @@ It talks to your own Vikunja server (0.24 or newer) over its REST API.
    current Jolla phones are aarch64; use `armv7hl` for older 32-bit devices and
    `i486` for the SDK emulator).
 3. Tap the file in the file manager, or over SSH:
-   `devel-su pkcon install-local harbour-vikunja-0.2.6-1.aarch64.rpm`
+   `devel-su pkcon install-local harbour-vikunja-0.2.7-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
 
@@ -57,7 +57,7 @@ allow, so it is part of the sideload/OpenRepos build only.
 
 | Data | Where it lives | Protection |
 |---|---|---|
-| Access token | Sailfish Secrets collection `harbourvikunjasession` | Encrypted storage plugin, unlocked with the device lock, owner-only access. Every save is read back. If Secrets refuses it, the app asks once whether the token may be kept in `~/.local/share/io.github.manojgudi/harbour-vikunja/api-token.secret` instead (mode 0600, folder 0700, hidden from other sandboxed apps by sailjail but not encrypted; unsandboxed apps and root can read it). If you say no, it stays in memory and you sign in on each start. Settings shows where it is kept and lets you change the choice. Wiped on sign-out and after 30 days without opening the app. |
+| Access token | Split in two: a random pad in `~/.local/share/io.github.manojgudi/harbour-vikunja/api-token.pad` (0600, folder 0700, only this app's sandbox sees it) and token XOR pad in the Sailfish Secrets collection `harbourvikunjasplit` (encrypted storage, unlocked with the device lock). Neither half alone reveals anything. The collection has no owner check because Secrets sees a launcher start and a reminder (D-Bus) start as different apps. If Secrets refuses it, the app asks before keeping the whole token in `api-token.secret` instead; if you say no, it stays in memory. Wiped on sign-out and after 30 days without opening the app. |
 | Password, two-factor code | Never stored | Used once to create a scoped API token (projects, tasks, labels, comments, attachments, own user), valid one year and revocable in the web app. |
 | Tasks, projects, comments | Memory only | No offline cache and no HTTP disk cache. Nothing about your tasks is written to the phone. |
 | Image previews | Memory only | Shown from an in-memory image provider (max 40 MB), cleared on sign-out. Never written to storage. |
@@ -79,9 +79,11 @@ Network:
 Other:
 
 * The desktop file uses `X-Nemo-Application-Type=generic`, not a booster
-  type. A booster loads the app into a booster process, so Sailfish Secrets
-  would see the booster, shared with other apps, as the owner of the token
-  instead of `/usr/bin/harbour-vikunja`.
+  type, so the app never runs inside a booster process shared with other
+  apps.
+* Uninstalling does not delete Secrets entries or the private folders
+  (Sailfish keeps user data on uninstall). Sign out first to remove
+  everything.
 * The app runs in the sailjail sandbox with `Internet`, `Notifications`,
   `Secrets`, `Downloads`, plus `Pictures`, `Documents`, `Videos`, `Music` and
   `MediaIndexing` so you can pick files to attach.

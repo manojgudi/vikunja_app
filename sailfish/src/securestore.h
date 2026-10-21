@@ -7,9 +7,10 @@
 
 namespace Sailfish { namespace Secrets { class Request; class SecretManager; } }
 
-// Keeps credentials in an app-owned Sailfish Secrets collection
-// (encrypted storage plugin, unlocked with the device lock, owner-only
-// access). Every write is read back from the daemon. If Secrets refuses it,
+// Keeps credentials split in two random-looking halves: one in a Sailfish
+// Secrets collection (encrypted storage plugin, unlocked with the device
+// lock), one in a 0600 file in the app's private folder (see
+// secretsWrite). Every write is read back. If Secrets refuses it,
 // the value can go to a 0600 file in the app's private data folder (hidden
 // from other apps by sailjail, not encrypted), but only once the user has
 // allowed that; until then it stays in memory. With
@@ -46,6 +47,10 @@ public:
     // Where the fallback file lives.
     static QString privateDir();
 
+    // Tests: an in-memory stand-in for the Secrets daemon, keyed by
+    // "collection/name". Never set in the app.
+    static QHash<QString, QByteArray> *s_fakeSecrets;
+
 private:
     void connectSecrets();
     bool run(Sailfish::Secrets::Request &req);
@@ -54,6 +59,15 @@ private:
     bool secretsWrite(const QString &name, const QByteArray &data);
     QByteArray secretsRead(const QString &name, bool *found);
     void secretsRemove(const QString &name);
+    QByteArray legacyRead(const QString &name, bool *found);
+    bool rawStore(const QString &collection, const QString &name, const QByteArray &data);
+    QByteArray rawRead(const QString &collection, const QString &name, bool *found);
+    void rawDelete(const QString &collection, const QString &name);
+    static QByteArray randomBytes(int count);
+    QString padPath(const QString &name) const;
+    bool writeFile(const QString &path, const QByteArray &data);
+    QByteArray readFile(const QString &path, bool *found);
+    void removeFile(const QString &path);
     bool fileWrite(const QString &name, const QByteArray &data);
     QByteArray fileRead(const QString &name, bool *found);
     void fileRemove(const QString &name);

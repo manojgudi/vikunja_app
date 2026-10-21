@@ -201,6 +201,9 @@ QtObject {
         Notification {
             appName: "Vikunja"
             appIcon: "harbour-vikunja"
+            // Short alert tone or vibration and a banner, see
+            // notifications/x-harbour-vikunja.reminder.conf.
+            category: "x-harbour-vikunja.reminder"
             urgency: Notification.Normal
         }
     }

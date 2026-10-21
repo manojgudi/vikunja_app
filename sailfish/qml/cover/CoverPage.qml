@@ -5,33 +5,51 @@ import "../js/util.js" as Util
 CoverBackground {
     id: cover
 
+    // Open tasks due from now until midnight (phone time), and open tasks
+    // whose due time has passed.
     property var tasks: []
+    property int today: 0
     property int overdue: 0
 
     function refresh() {
         if (!api.authenticated) {
             tasks = []
+            today = 0
+            overdue = 0
             return
         }
         api.request("GET", "/tasks", {
-            filter: "done = false && due_date < now+7d",
+            filter: "done = false && due_date < now+2d",
             filter_include_nulls: "false",
             sort_by: ["due_date"],
             order_by: ["asc"],
-            per_page: 20
+            per_page: 50
         }, null, function(r) {
-            if (!r.ok)
+            if (!r.ok) {
+                api.diag("cover: tasks request failed, status " + r.status)
                 return
-            var list = r.data || []
-            var n = 0
-            for (var i = 0; i < list.length; ++i)
-                if (Util.isOverdue(list[i])) n++
-            overdue = n
-            tasks = list
+            }
+            var c = Util.coverCounts(r.data || [], new Date())
+            overdue = c.overdue
+            today = c.today
+            tasks = c.tasks
         })
     }
 
     onStatusChanged: if (status === Cover.Active) refresh()
+
+    // Counts change as time passes, so refresh while the cover is visible.
+    Timer {
+        interval: 60000
+        repeat: true
+        running: cover.status === Cover.Active && api.authenticated
+        onTriggered: cover.refresh()
+    }
+
+    Connections {
+        target: api
+        onSessionChanged: cover.refresh()
+    }
 
     Connections {
         target: app
@@ -52,7 +70,7 @@ CoverBackground {
         spacing: Theme.paddingSmall
 
         Label {
-            text: api.authenticated ? qsTr("%n upcoming", "", cover.tasks.length) : qsTr("Vikunja")
+            text: api.authenticated ? qsTr("%n due later today", "", cover.today) : qsTr("Vikunja")
             font.pixelSize: Theme.fontSizeLarge
             color: Theme.highlightColor
         }

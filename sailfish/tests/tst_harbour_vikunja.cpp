@@ -557,6 +557,95 @@ private slots:
         qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
     }
 
+    // The token is split between Secrets and a pad file in the private folder.
+    // Uses a stand-in for the Secrets daemon (none runs in the build engine).
+    void splitTokenStorage()
+    {
+        qunsetenv("HARBOUR_VIKUNJA_MEMORY_STORE");
+        QHash<QString, QByteArray> fake;
+        SecureStore::s_fakeSecrets = &fake;
+        const QString pad = SecureStore::privateDir() + QStringLiteral("/api-token.pad");
+        const QByteArray token = "tk_0123456789abcdef0123456789abcdef";
+        {
+            SecureStore store;
+            store.init();
+            QVERIFY(store.write(QStringLiteral("api-token"), token));
+            QCOMPARE(store.backend(), SecureStore::Secrets);
+        }
+        // Neither half holds the token.
+        QVERIFY(QFile::exists(pad));
+        QCOMPARE(QFile::permissions(pad) & (QFileDevice::ReadGroup | QFileDevice::ReadOther), QFileDevice::Permissions());
+        const QByteArray cipher = fake.value(QStringLiteral("harbourvikunjasplit/api-token"));
+        QFile padFile(pad);
+        QVERIFY(padFile.open(QIODevice::ReadOnly));
+        const QByteArray padData = padFile.readAll();
+        padFile.close();
+        QCOMPARE(cipher.size(), token.size());
+        QVERIFY(cipher != token && padData != token);
+        // A new process (launcher or reminder start) reads it back.
+        {
+            SecureStore store;
+            store.init();
+            bool found = false;
+            QCOMPARE(store.read(QStringLiteral("api-token"), &found), token);
+            QVERIFY(found);
+        }
+        // Without the pad the Secrets half is useless.
+        QFile::rename(pad, pad + QStringLiteral(".bak"));
+        {
+            SecureStore store;
+            store.init();
+            bool found = true;
+            store.read(QStringLiteral("api-token"), &found);
+            QVERIFY(!found);
+        }
+        QFile::rename(pad + QStringLiteral(".bak"), pad);
+        // Sign-out removes both halves.
+        {
+            SecureStore store;
+            store.init();
+            store.remove(QStringLiteral("api-token"));
+        }
+        QVERIFY(!QFile::exists(pad));
+        QVERIFY(fake.isEmpty());
+        // A token from 0.2.1 - 0.2.6 (whole, owner-only collection) is moved.
+        fake.insert(QStringLiteral("harbourvikunjasession/api-token"), token);
+        {
+            SecureStore store;
+            store.init();
+            bool found = false;
+            QCOMPARE(store.read(QStringLiteral("api-token"), &found), token);
+            QVERIFY(found);
+        }
+        QVERIFY(!fake.contains(QStringLiteral("harbourvikunjasession/api-token")));
+        QVERIFY(fake.contains(QStringLiteral("harbourvikunjasplit/api-token")));
+        QVERIFY(QFile::exists(pad));
+        {
+            SecureStore store;
+            store.init();
+            bool found = false;
+            QCOMPARE(store.read(QStringLiteral("api-token"), &found), token);
+            store.remove(QStringLiteral("api-token"));
+        }
+        SecureStore::s_fakeSecrets = nullptr;
+        qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
+    }
+
+    // "+" in a query value must reach the server as "+", not as a space.
+    void queryPlusIsEncoded()
+    {
+        requireServer();
+        ApiClient api(&m_store);
+        ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+        QVariantMap q;
+        q.insert(QStringLiteral("filter"), QStringLiteral("done = false && due_date < now+2d"));
+        q.insert(QStringLiteral("filter_include_nulls"), QStringLiteral("false"));
+        r = req(api, QStringLiteral("GET"), QStringLiteral("/tasks"), QVariant(), q);
+        QVERIFY2(r.ok, qPrintable(r.error));
+        api.logout();
+    }
+
     void attachmentUploadAndPreview()
     {
         requireServer();

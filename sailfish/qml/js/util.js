@@ -152,3 +152,18 @@ function projectTree(projects, showArchived) {
 function clone(obj) {
     return JSON.parse(JSON.stringify(obj))
 }
+
+// For the cover: open tasks due from now until midnight (phone time) and
+// open tasks already past due; the list shows the coming ones first.
+function coverCounts(list, now) {
+    var endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+    var coming = [], late = []
+    for (var i = 0; i < list.length; ++i) {
+        var due = parseDate(list[i].due_date)
+        if (list[i].done || !due || due > endOfDay)
+            continue
+        if (due < now) late.push(list[i])
+        else coming.push(list[i])
+    }
+    return { today: coming.length, overdue: late.length, tasks: coming.concat(late) }
+}

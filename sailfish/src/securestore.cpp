@@ -22,17 +22,11 @@
 using namespace Sailfish::Secrets;
 
 namespace {
-// Version 0.2.0 and older used "harbourvikunja". Depending on how the app
-// was started (launcher booster or D-Bus activation) Secrets saw a different
-// owner for it, so writes could be refused; a fresh collection avoids
-// inheriting one created under the wrong owner.
-const QString CollectionName = QStringLiteral("harbourvikunjasession");
+// Holds token XOR pad (see secretsWrite). 0.2.0 used "harbourvikunja" and
+// 0.2.1 - 0.2.6 "harbourvikunjasession", both owner-only.
+const QString CollectionName = QStringLiteral("harbourvikunjasplit");
+const QString LegacyCollectionName = QStringLiteral("harbourvikunjasession");
 const QString OldCollectionName = QStringLiteral("harbourvikunja");
-
-Secret::Identifier identifierFor(const QString &name)
-{
-    return Secret::Identifier(name, CollectionName, SecretManager::DefaultEncryptedStoragePluginName);
-}
 
 QString describe(const Result &r)
 {
@@ -77,6 +71,8 @@ bool SecureStore::run(Request &req)
     return true;
 }
 
+QHash<QString, QByteArray> *SecureStore::s_fakeSecrets = nullptr;
+
 SecureStore::SecureStore() = default;
 
 SecureStore::~SecureStore()
@@ -101,7 +97,7 @@ bool SecureStore::init()
     }
     // Connecting to Secrets waits for the daemon, so it happens on first
     // use, after the window is up, not here.
-    m_wantSecrets = !qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_FILE_STORE");
+    m_wantSecrets = s_fakeSecrets || !qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_FILE_STORE");
     return true;
 }
 
@@ -110,6 +106,11 @@ void SecureStore::connectSecrets()
     if (!m_wantSecrets)
         return;
     m_wantSecrets = false;
+    if (s_fakeSecrets) {
+        m_secretsReady = true;
+        m_backend = Secrets;
+        return;
+    }
     if (!m_manager)
         m_manager = new SecretManager;
     m_connecting = true;
@@ -148,7 +149,7 @@ bool SecureStore::ensureCollection()
     req.setCollectionName(CollectionName);
     req.setCollectionLockType(CreateCollectionRequest::DeviceLock);
     req.setDeviceLockUnlockSemantic(SecretManager::DeviceLockKeepUnlocked);
-    req.setAccessControlMode(SecretManager::OwnerOnlyMode);
+    req.setAccessControlMode(SecretManager::NoAccessControlMode);
     req.setUserInteractionMode(SecretManager::PreventInteraction);
     req.setStoragePluginName(SecretManager::DefaultEncryptedStoragePluginName);
     req.setEncryptionPluginName(SecretManager::DefaultEncryptedStoragePluginName);
@@ -219,6 +220,20 @@ QByteArray SecureStore::read(const QString &name, bool *found)
         if (ok)
             m_backend = Secrets;
     }
+    if (!ok && m_secretsReady) {
+        bool legacy = false;
+        data = legacyRead(name, &legacy);
+        if (legacy) {
+            // Move it to the split form so reminder starts can read it too.
+            ok = true;
+            bool check = false;
+            if (secretsWrite(name, data) && secretsRead(name, &check) == data && check) {
+                rawDelete(LegacyCollectionName, name);
+                AppSettings::diag(QStringLiteral("secrets: moved the token to the split form"));
+            }
+            m_backend = Secrets;
+        }
+    }
     if (!ok) {
         data = fileRead(name, &ok);
         if (ok) {
@@ -261,6 +276,8 @@ void SecureStore::forgetFile(const QString &name)
 
 void SecureStore::removeOldToken()
 {
+    if (s_fakeSecrets)
+        return;
     // Best effort: only works when the old collection has the same owner.
     DeleteSecretRequest req;
     req.setManager(m_manager);
@@ -271,11 +288,65 @@ void SecureStore::removeOldToken()
         return;
 }
 
+// The token is never stored whole. A random pad of the same length goes to
+// a 0600 file in the app's private folder (which sailjail shows to this app
+// only, however it was started), and token XOR pad goes to Secrets. Either
+// half alone is random noise. The Secrets collection has no owner check:
+// Secrets identifies apps by how they were started, and a start from the
+// launcher and one from a reminder (D-Bus) look like different apps to it.
+
 bool SecureStore::secretsWrite(const QString &name, const QByteArray &data)
 {
-    secretsRemove(name);
+    rawDelete(CollectionName, name);
+    const QByteArray pad = randomBytes(data.size());
+    if (pad.size() != data.size() || !writeFile(padPath(name), pad))
+        return false;
+    QByteArray cipher(data.size(), '\0');
+    for (int i = 0; i < data.size(); ++i)
+        cipher[i] = char(data.at(i) ^ pad.at(i));
+    return rawStore(CollectionName, name, cipher);
+}
 
-    Secret secret(identifierFor(name));
+QByteArray SecureStore::secretsRead(const QString &name, bool *found)
+{
+    *found = false;
+    bool ok = false;
+    const QByteArray cipher = rawRead(CollectionName, name, &ok);
+    if (!ok)
+        return QByteArray();
+    bool padOk = false;
+    const QByteArray pad = readFile(padPath(name), &padOk);
+    if (!padOk || pad.size() != cipher.size()) {
+        m_lastError = QStringLiteral("pad file missing or does not match");
+        return QByteArray();
+    }
+    QByteArray data(cipher.size(), '\0');
+    for (int i = 0; i < cipher.size(); ++i)
+        data[i] = char(cipher.at(i) ^ pad.at(i));
+    *found = true;
+    return data;
+}
+
+void SecureStore::secretsRemove(const QString &name)
+{
+    rawDelete(CollectionName, name);
+    removeFile(padPath(name));
+    rawDelete(LegacyCollectionName, name);
+}
+
+QByteArray SecureStore::legacyRead(const QString &name, bool *found)
+{
+    // 0.2.1 - 0.2.6 kept the whole token in an owner-only collection.
+    return rawRead(LegacyCollectionName, name, found);
+}
+
+bool SecureStore::rawStore(const QString &collection, const QString &name, const QByteArray &data)
+{
+    if (s_fakeSecrets) {
+        s_fakeSecrets->insert(collection + QLatin1Char('/') + name, data);
+        return true;
+    }
+    Secret secret(Secret::Identifier(name, collection, SecretManager::DefaultEncryptedStoragePluginName));
     secret.setType(Secret::TypeBlob);
     secret.setData(data);
 
@@ -293,12 +364,17 @@ bool SecureStore::secretsWrite(const QString &name, const QByteArray &data)
     return true;
 }
 
-QByteArray SecureStore::secretsRead(const QString &name, bool *found)
+QByteArray SecureStore::rawRead(const QString &collection, const QString &name, bool *found)
 {
     *found = false;
+    if (s_fakeSecrets) {
+        const QString key = collection + QLatin1Char('/') + name;
+        *found = s_fakeSecrets->contains(key);
+        return s_fakeSecrets->value(key);
+    }
     StoredSecretRequest req;
     req.setManager(m_manager);
-    req.setIdentifier(identifierFor(name));
+    req.setIdentifier(Secret::Identifier(name, collection, SecretManager::DefaultEncryptedStoragePluginName));
     req.setUserInteractionMode(SecretManager::PreventInteraction);
     if (!run(req))
         return QByteArray();
@@ -310,19 +386,31 @@ QByteArray SecureStore::secretsRead(const QString &name, bool *found)
     return req.secret().data();
 }
 
-void SecureStore::secretsRemove(const QString &name)
+void SecureStore::rawDelete(const QString &collection, const QString &name)
 {
+    if (s_fakeSecrets) {
+        s_fakeSecrets->remove(collection + QLatin1Char('/') + name);
+        return;
+    }
     DeleteSecretRequest req;
     req.setManager(m_manager);
-    req.setIdentifier(identifierFor(name));
+    req.setIdentifier(Secret::Identifier(name, collection, SecretManager::DefaultEncryptedStoragePluginName));
     req.setUserInteractionMode(SecretManager::PreventInteraction);
-    if (!run(req))
-        return;
+    run(req);
+}
+
+QByteArray SecureStore::randomBytes(int count)
+{
+    QFile random(QStringLiteral("/dev/urandom"));
+    if (!random.open(QIODevice::ReadOnly))
+        return QByteArray();
+    return random.read(count);
 }
 
 // --- Private file fallback -----------------------------------------------------
 
-QString SecureStore::filePath(const QString &name) const
+namespace {
+QString safeName(const QString &name)
 {
     // Names are fixed identifiers chosen by the app, never user input.
     QString safe = name;
@@ -330,17 +418,45 @@ QString SecureStore::filePath(const QString &name) const
         if (!c.isLetterOrNumber() && c != QLatin1Char('_') && c != QLatin1Char('-'))
             c = QLatin1Char('_');
     }
-    return privateDir() + QStringLiteral("/") + safe + QStringLiteral(".secret");
+    return safe;
+}
+}
+
+// The whole token, only when Secrets refuses it and the user allowed this.
+QString SecureStore::filePath(const QString &name) const
+{
+    return privateDir() + QStringLiteral("/") + safeName(name) + QStringLiteral(".secret");
+}
+
+// The random half of a split token.
+QString SecureStore::padPath(const QString &name) const
+{
+    return privateDir() + QStringLiteral("/") + safeName(name) + QStringLiteral(".pad");
 }
 
 bool SecureStore::fileWrite(const QString &name, const QByteArray &data)
+{
+    return writeFile(filePath(name), data);
+}
+
+QByteArray SecureStore::fileRead(const QString &name, bool *found)
+{
+    return readFile(filePath(name), found);
+}
+
+void SecureStore::fileRemove(const QString &name)
+{
+    removeFile(filePath(name));
+}
+
+bool SecureStore::writeFile(const QString &path, const QByteArray &data)
 {
     const QString dir = privateDir();
     if (dir.isEmpty() || !QDir().mkpath(dir))
         return false;
     QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
 
-    QSaveFile file(filePath(name));
+    QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return false;
     file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
@@ -348,13 +464,13 @@ bool SecureStore::fileWrite(const QString &name, const QByteArray &data)
         m_lastError = file.errorString();
         return false;
     }
-    return QFile::setPermissions(filePath(name), QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 }
 
-QByteArray SecureStore::fileRead(const QString &name, bool *found)
+QByteArray SecureStore::readFile(const QString &path, bool *found)
 {
     *found = false;
-    QFile file(filePath(name));
+    QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return QByteArray();
     const QByteArray data = file.readAll();
@@ -364,9 +480,9 @@ QByteArray SecureStore::fileRead(const QString &name, bool *found)
     return data;
 }
 
-void SecureStore::fileRemove(const QString &name)
+void SecureStore::removeFile(const QString &path)
 {
-    QFile file(filePath(name));
+    QFile file(path);
     if (!file.exists())
         return;
     // Overwrite before deleting so the old value is not left in free blocks

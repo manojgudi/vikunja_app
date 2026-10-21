@@ -1,5 +1,5 @@
 TARGET = harbour-vikunja
-VERSION = 0.2.6
+VERSION = 0.2.7
 
 CONFIG += sailfishapp c++11
 QT += network dbus
@@ -47,3 +47,8 @@ DISTFILES += \
     harbour-vikunja.desktop
 
 SAILFISHAPP_ICONS = 86x86 108x108 128x128 172x172
+
+# Notification category: sound/vibration and a banner for reminders.
+notificationcategory.files = notifications/x-harbour-vikunja.reminder.conf
+notificationcategory.path = /usr/share/lipstick/notificationcategories
+INSTALLS += notificationcategory

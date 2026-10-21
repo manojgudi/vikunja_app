@@ -444,6 +444,64 @@ private slots:
         QCOMPARE(after.setting(QStringLiteral("theme")).toString(), QStringLiteral("dark"));
     }
 
+    // A real restart: a new process has a new SecureStore with nothing cached
+    // in memory. No Secrets daemon runs in the test environment, so this goes
+    // through the same fallback the phone uses when Secrets refuses the token.
+    void sessionSurvivesRestart()
+    {
+        requireServer();
+        qunsetenv("HARBOUR_VIKUNJA_MEMORY_STORE");
+        const QString file = SecureStore::privateDir() + QStringLiteral("/api-token.secret");
+        QFile::remove(file);
+        {
+            SecureStore store;
+            QVERIFY(store.init());
+            QVERIFY(store.persistent());
+            ApiClient api(&store);
+            ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+            QVERIFY2(r.ok, qPrintable(r.error));
+            QCOMPARE(api.tokenStorage(), QStringLiteral("file"));
+        }
+        QVERIFY(QFile::exists(file));
+        // Owner only: no group or other bits on the file or its folder.
+        const QFileDevice::Permissions others = QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup
+                | QFileDevice::ReadOther | QFileDevice::WriteOther | QFileDevice::ExeOther;
+        QCOMPARE(int(QFile::permissions(file) & others), 0);
+        QCOMPARE(int(QFile::permissions(file) & QFileDevice::ExeOwner), 0);
+        QCOMPARE(int(QFileInfo(SecureStore::privateDir()).permissions() & others), 0);
+        {
+            SecureStore store;
+            store.init();
+            ApiClient api(&store);
+            QVERIFY(api.restoreSession());
+            QVERIFY(api.authenticated());
+            ApiClient::Result r = req(api, QStringLiteral("GET"), QStringLiteral("/user"));
+            QVERIFY2(r.ok, qPrintable(r.error));
+            api.logout();
+        }
+        QVERIFY(!QFile::exists(file));
+        {
+            SecureStore store;
+            store.init();
+            ApiClient api(&store);
+            QVERIFY(!api.restoreSession());
+            // Sign in again, then leave the app unused for 31 days.
+            ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+            QVERIFY2(r.ok, qPrintable(r.error));
+            api.setLastUsedForTest(QDateTime::currentDateTimeUtc().addDays(-31));
+        }
+        QVERIFY(QFile::exists(file));
+        {
+            SecureStore store;
+            store.init();
+            ApiClient api(&store);
+            QVERIFY(!api.restoreSession());
+            QCOMPARE(api.sessionNotice(), QStringLiteral("inactive"));
+        }
+        QVERIFY(!QFile::exists(file));
+        qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
+    }
+
     void attachmentUploadAndPreview()
     {
         requireServer();

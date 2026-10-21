@@ -106,6 +106,17 @@ bool ApiClient::persistentLogin() const
     return m_store && m_store->persistent();
 }
 
+QString ApiClient::tokenStorage() const
+{
+    if (!m_store)
+        return QStringLiteral("memory");
+    switch (m_store->backend()) {
+    case SecureStore::Secrets: return QStringLiteral("secrets");
+    case SecureStore::PrivateFile: return QStringLiteral("file");
+    default: return QStringLiteral("memory");
+    }
+}
+
 bool ApiClient::insecureConnection() const
 {
     return QUrl(m_server).scheme() == QLatin1String("http");

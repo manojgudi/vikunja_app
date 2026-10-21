@@ -60,7 +60,8 @@ Page {
             }
             DetailItem {
                 label: qsTr("Credential storage")
-                value: api.persistentLogin ? qsTr("Sailfish Secrets (encrypted)") : qsTr("Memory only")
+                value: api.tokenStorage === "secrets" ? qsTr("Sailfish Secrets (encrypted)")
+                     : api.tokenStorage === "file" ? qsTr("App-private folder") : qsTr("Memory only")
             }
             DetailItem {
                 visible: api.insecureConnection
@@ -223,7 +224,7 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Tasks are kept in memory only and never cached on the phone. The app runs inside the Sailfish sandbox, and its token is stored in Sailfish Secrets.")
+                text: qsTr("Tasks are kept in memory only and never cached on the phone. The app runs inside the Sailfish sandbox, and its token is stored in Sailfish Secrets, or in its private folder if Secrets refuses it.")
             }
 
             Item { width: 1; height: Theme.paddingLarge }

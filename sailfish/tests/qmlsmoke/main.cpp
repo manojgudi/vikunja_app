@@ -26,6 +26,9 @@ static void handler(QtMsgType type, const QMessageLogContext &, const QString &m
     fprintf(stderr, "%s\n", qPrintable(msg));
     if (msg.startsWith(QLatin1String("SMOKE:")))
         return;
+    // No Secrets daemon in the build engine; the store falls back by design.
+    if (msg.contains(QLatin1String("secrets daemon")))
+        return;
     if (type != QtDebugMsg && type != QtInfoMsg
             && (msg.contains(QLatin1String(".qml")) || msg.contains(QLatin1String(".js"))
                 || msg.contains(QLatin1String("Error"))))
@@ -34,11 +37,19 @@ static void handler(QtMsgType type, const QMessageLogContext &, const QString &m
 
 int main(int argc, char **argv)
 {
-    qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
+    // The restart test needs the real store; every other run stays in memory.
+    if (!qEnvironmentVariableIsSet("SMOKE_PERSIST"))
+        qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
     qInstallMessageHandler(handler);
     QGuiApplication app(argc, argv);
-    app.setOrganizationName(QStringLiteral("harbour-vikunja-smoke"));
-    app.setApplicationName(QStringLiteral("smoke"));
+    if (qEnvironmentVariableIsSet("SMOKE_REAL_NAMES")) {
+        // Same settings and private folder as the installed app (e2e test).
+        app.setOrganizationName(QStringLiteral("io.github.manojgudi"));
+        app.setApplicationName(QStringLiteral("harbour-vikunja"));
+    } else {
+        app.setOrganizationName(QStringLiteral("harbour-vikunja-smoke"));
+        app.setApplicationName(QStringLiteral("smoke"));
+    }
 
     const QString qmlDir = QString::fromLocal8Bit(qgetenv("SMOKE_QML_DIR"));
     SecureStore store;
@@ -62,6 +73,9 @@ int main(int argc, char **argv)
     engine.rootContext()->setContextProperty(QStringLiteral("smokeUrl"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_URL")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokeToken"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_TOKEN")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokeQmlDir"), qmlDir);
+    engine.rootContext()->setContextProperty(QStringLiteral("smokeUser"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_USER")));
+    engine.rootContext()->setContextProperty(QStringLiteral("smokePassword"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_PASSWORD")));
+    engine.rootContext()->setContextProperty(QStringLiteral("smokePhase"), QString::fromLocal8Bit(qgetenv("SMOKE_PHASE")));
 
     // A photo in ~/Pictures, as the file picker would return it.
     QDir pictures(QDir::homePath() + QStringLiteral("/Pictures"));

@@ -207,7 +207,7 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Sailfish Secrets is not available, so you will need to sign in again each time the app starts. Nothing is stored unencrypted.")
+                text: qsTr("Secure storage is turned off, so you will need to sign in again each time the app starts.")
             }
         }
         VerticalScrollDecorator {}

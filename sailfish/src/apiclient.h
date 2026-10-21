@@ -38,6 +38,8 @@ class ApiClient : public QObject
     Q_PROPERTY(QString tokenExpires READ tokenExpires NOTIFY sessionChanged)
     Q_PROPERTY(bool insecureConnection READ insecureConnection NOTIFY sessionChanged)
     Q_PROPERTY(bool persistentLogin READ persistentLogin CONSTANT)
+    // "secrets", "file" or "memory": where the token is kept.
+    Q_PROPERTY(QString tokenStorage READ tokenStorage NOTIFY sessionChanged)
     Q_PROPERTY(int pendingRequests READ pendingRequests NOTIFY pendingRequestsChanged)
     // Why the last restoreSession() failed: "" or "inactive".
     Q_PROPERTY(QString sessionNotice READ sessionNotice NOTIFY sessionChanged)
@@ -76,6 +78,7 @@ public:
     QString tokenExpires() const { return m_tokenExpires; }
     bool insecureConnection() const;
     bool persistentLogin() const;
+    QString tokenStorage() const;
     int pendingRequests() const { return m_pending; }
     QString sessionNotice() const { return m_sessionNotice; }
 

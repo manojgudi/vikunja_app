@@ -1,6 +1,8 @@
 [Desktop Entry]
 Type=Application
-X-Nemo-Application-Type=silica-qt5
+# Not a booster type: boosters load the app into a shared booster process,
+# which Sailfish Secrets then sees as a different owner than the D-Bus start.
+X-Nemo-Application-Type=generic
 Icon=harbour-vikunja
 Exec=/usr/bin/harbour-vikunja
 Name=Vikunja

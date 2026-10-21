@@ -10,6 +10,9 @@ SB="sb2 -t $T"
 set -e
 cd $D
 rm -f notify.log app.log e2e.log
+# Start signed out, like a fresh install; the running app signs in and its
+# token must still be there for the instance D-Bus starts later.
+rm -rf ~/.local/share/io.github.manojgudi/harbour-vikunja ~/.config/io.github.manojgudi
 # The app as installed on a phone.
 $SB -m sdk-install -R rpm -U --force --nodeps ~/b-i486/RPMS/harbour-vikunja-*.i486.rpm
 $SB rpm -q --requires harbour-vikunja | grep -i -E "timed|secrets|notif"
@@ -25,7 +28,7 @@ cat > launch.sh <<S
 echo "APP STARTED \$(date -Is) args: -prestart" >> $D/app.log
 # On the phone every session process has these; our private buses need them spelled out.
 export DBUS_SYSTEM_BUS_ADDRESS=unix:path=$D/sys.sock DBUS_SESSION_BUS_ADDRESS=unix:path=$D/ses.sock
-export QT_QPA_PLATFORM=minimal HARBOUR_VIKUNJA_MEMORY_STORE=1
+export QT_QPA_PLATFORM=minimal
 /usr/bin/harbour-vikunja -prestart >> $D/app.log 2>&1
 echo "APP EXITED \$(date -Is) rc=\$?" >> $D/app.log
 S
@@ -41,7 +44,7 @@ $SB qmake ~/src/sailfish/tests/qmlsmoke/qmlsmoke.pro >/dev/null && $SB make -j4 
 nohup $SB dbus-monitor --session > $D/sesmon.log 2>&1 &
 echo "== app running, $(date -Is)"
 set +e
-$SB env QT_QPA_PLATFORM=minimal SMOKE_REGISTER_BUS=1 SMOKE_QML_DIR=/home/mersdk/src/sailfish/qml \
+$SB env QT_QPA_PLATFORM=minimal SMOKE_REGISTER_BUS=1 SMOKE_PERSIST=1 SMOKE_REAL_NAMES=1 SMOKE_QML_DIR=/home/mersdk/src/sailfish/qml \
   SMOKE_DRIVER=/home/mersdk/src/sailfish/tests/e2e/E2EDriver.qml VIKUNJA_TEST_URL=http://localhost:3456 \
   VIKUNJA_TEST_TOKEN=$(cat ~/probe/apitoken.txt) ./qmlsmoke > $D/e2e.log 2>&1
 echo "== app closed rc=$?, $(date -Is)"

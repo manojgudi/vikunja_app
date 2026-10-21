@@ -63,6 +63,15 @@ Page {
                 value: api.tokenStorage === "secrets" ? qsTr("Sailfish Secrets (encrypted)")
                      : api.tokenStorage === "file" ? qsTr("App-private folder") : qsTr("Memory only")
             }
+            TextSwitch {
+                // Only offered when Secrets is not doing its job.
+                visible: !api.secretsWorking && api.persistentLogin
+                text: qsTr("Keep me signed in without Secrets")
+                description: qsTr("Keeps the token in an unencrypted file in the app's private folder. Other sandboxed apps cannot read it; apps without the sandbox or root can.")
+                checked: api.fileFallback === "allowed"
+                automaticCheck: false
+                onClicked: api.setFileFallback(!checked)
+            }
             DetailItem {
                 visible: api.insecureConnection
                 label: qsTr("Connection")
@@ -224,7 +233,7 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Tasks are kept in memory only and never cached on the phone. The app runs inside the Sailfish sandbox, and its token is stored in Sailfish Secrets, or in its private folder if Secrets refuses it.")
+                text: qsTr("Tasks are kept in memory only and never cached on the phone. The app runs inside the Sailfish sandbox, and its token is stored in Sailfish Secrets. Only if Secrets refuses it and you allow it is the token kept in a file in the app's private folder.")
             }
 
             Item { width: 1; height: Theme.paddingLarge }

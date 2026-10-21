@@ -44,6 +44,7 @@ Page {
                 app.loadProjects()
                 app.loadLabels()
                 goHome()
+                app.askStorageChoice()
             })
         }
     }

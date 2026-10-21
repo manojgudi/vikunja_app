@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.1
+Version:    0.2.2
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -42,6 +42,9 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.2-1
+- If Sailfish Secrets refuses the token, ask before keeping it in the
+  private-folder file; the choice can be changed in Settings.
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.1-1
 - Stay signed in after closing the app: the launcher no longer starts the app
   through a shared booster, every save to Sailfish Secrets is read back, and

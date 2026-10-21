@@ -127,6 +127,28 @@ ApplicationWindow {
         return dialog
     }
 
+    // Asks once, on top of the home page, whether the token may be kept in a
+    // private file because Secrets refused it.
+    property bool storagePromptPending: false
+    function askStorageChoice() {
+        if (!api.storageChoiceNeeded || appBridge.background)
+            return
+        storagePromptPending = true
+        showStoragePrompt()
+    }
+    function showStoragePrompt() {
+        if (!storagePromptPending || pageStack.busy)
+            return
+        storagePromptPending = false
+        if (api.storageChoiceNeeded)
+            pageStack.push(Qt.resolvedUrl("pages/StorageChoiceDialog.qml"))
+    }
+
+    Connections {
+        target: pageStack
+        onBusyChanged: app.showStoragePrompt()
+    }
+
     function signedOut() {
         currentUser = null
         projects = []

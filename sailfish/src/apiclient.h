@@ -40,6 +40,12 @@ class ApiClient : public QObject
     Q_PROPERTY(bool persistentLogin READ persistentLogin CONSTANT)
     // "secrets", "file" or "memory": where the token is kept.
     Q_PROPERTY(QString tokenStorage READ tokenStorage NOTIFY sessionChanged)
+    // Secrets refused the token and the user has not said yet whether the
+    // private-file fallback may be used.
+    Q_PROPERTY(bool storageChoiceNeeded READ storageChoiceNeeded NOTIFY sessionChanged)
+    // "allowed", "declined" or empty.
+    Q_PROPERTY(QString fileFallback READ fileFallback NOTIFY sessionChanged)
+    Q_PROPERTY(bool secretsWorking READ secretsWorking NOTIFY sessionChanged)
     Q_PROPERTY(int pendingRequests READ pendingRequests NOTIFY pendingRequestsChanged)
     // Why the last restoreSession() failed: "" or "inactive".
     Q_PROPERTY(QString sessionNotice READ sessionNotice NOTIFY sessionChanged)
@@ -79,6 +85,10 @@ public:
     bool insecureConnection() const;
     bool persistentLogin() const;
     QString tokenStorage() const;
+    bool storageChoiceNeeded() const;
+    QString fileFallback() const;
+    bool secretsWorking() const;
+    Q_INVOKABLE void setFileFallback(bool allow);
     int pendingRequests() const { return m_pending; }
     QString sessionNotice() const { return m_sessionNotice; }
 

@@ -47,6 +47,10 @@ QtObject {
         api.loginWithToken(smokeUrl, smokeToken, function(r) {
             if (!r.ok) { console.error("Error: login " + r.error); Qt.quit(); return }
             win.currentUser = r.data
+            // No Secrets daemon here: say yes to the private-file prompt so
+            // the instance D-Bus starts later can read the token.
+            if (api.storageChoiceNeeded)
+                api.setFileFallback(true)
             api.request("PUT", "/projects", {}, { title: "E2E project" }, function(p) {
                 reminderAt = new Date(Date.now() + 25000)
                 dueAt = new Date(Date.now() + 55000)

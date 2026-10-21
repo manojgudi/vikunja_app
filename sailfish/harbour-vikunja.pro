@@ -1,5 +1,5 @@
 TARGET = harbour-vikunja
-VERSION = 0.2.1
+VERSION = 0.2.2
 
 CONFIG += sailfishapp c++11
 QT += network dbus

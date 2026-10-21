@@ -453,13 +453,35 @@ private slots:
         qunsetenv("HARBOUR_VIKUNJA_MEMORY_STORE");
         const QString file = SecureStore::privateDir() + QStringLiteral("/api-token.secret");
         QFile::remove(file);
+        QSettings().remove(QStringLiteral("security/fileFallback"));
         {
+            // Not asked yet: nothing is written, the app asks first.
             SecureStore store;
             QVERIFY(store.init());
             QVERIFY(store.persistent());
             ApiClient api(&store);
             ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
             QVERIFY2(r.ok, qPrintable(r.error));
+            QVERIFY(!api.secretsWorking());
+            QVERIFY(api.storageChoiceNeeded());
+            QCOMPARE(api.tokenStorage(), QStringLiteral("memory"));
+            QVERIFY(!QFile::exists(file));
+            // "Don't": still nothing on disk, and no second prompt.
+            api.setFileFallback(false);
+            QVERIFY(!api.storageChoiceNeeded());
+            QVERIFY(!QFile::exists(file));
+        }
+        {
+            SecureStore store;
+            store.init();
+            ApiClient api(&store);
+            QVERIFY(!api.restoreSession());
+            ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+            QVERIFY2(r.ok, qPrintable(r.error));
+            QVERIFY(!api.storageChoiceNeeded());
+            QVERIFY(!QFile::exists(file));
+            // Changed in Settings: the current token is saved right away.
+            api.setFileFallback(true);
             QCOMPARE(api.tokenStorage(), QStringLiteral("file"));
         }
         QVERIFY(QFile::exists(file));
@@ -499,6 +521,19 @@ private slots:
             QCOMPARE(api.sessionNotice(), QStringLiteral("inactive"));
         }
         QVERIFY(!QFile::exists(file));
+        {
+            // Saying no later deletes the file.
+            SecureStore store;
+            store.init();
+            ApiClient api(&store);
+            ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+            QVERIFY2(r.ok, qPrintable(r.error));
+            QVERIFY(QFile::exists(file));
+            api.setFileFallback(false);
+            QVERIFY(!QFile::exists(file));
+            api.logout();
+        }
+        QSettings().remove(QStringLiteral("security/fileFallback"));
         qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
     }
 

@@ -99,11 +99,47 @@ ApiClient::ApiClient(SecureStore *store, QObject *parent)
 {
     // No HTTP cache: responses (task contents) are never written to disk.
     m_nam->setCache(nullptr);
+    if (m_store) {
+        const QString choice = fileFallback();
+        m_store->setFileAllowed(choice == QLatin1String("allowed"));
+        if (choice == QLatin1String("declined"))
+            m_store->forgetFile(QLatin1String(TokenSecret));
+    }
 }
 
 bool ApiClient::persistentLogin() const
 {
     return m_store && m_store->persistent();
+}
+
+bool ApiClient::storageChoiceNeeded() const
+{
+    return m_store && m_store->consentNeeded() && fileFallback().isEmpty();
+}
+
+QString ApiClient::fileFallback() const
+{
+    return m_settings.value(QStringLiteral("security/fileFallback")).toString();
+}
+
+bool ApiClient::secretsWorking() const
+{
+    return m_store && m_store->secretsWorking();
+}
+
+void ApiClient::setFileFallback(bool allow)
+{
+    m_settings.setValue(QStringLiteral("security/fileFallback"),
+                        allow ? QStringLiteral("allowed") : QStringLiteral("declined"));
+    m_settings.sync();
+    if (m_store) {
+        m_store->setFileAllowed(allow);
+        if (!allow)
+            m_store->forgetFile(QLatin1String(TokenSecret));
+        else if (!m_token.isEmpty())
+            m_store->write(QLatin1String(TokenSecret), m_token);
+    }
+    emit sessionChanged();
 }
 
 QString ApiClient::tokenStorage() const

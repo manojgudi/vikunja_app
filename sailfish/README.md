@@ -10,7 +10,7 @@ It talks to your own Vikunja server (0.24 or newer) over its REST API.
    current Jolla phones are aarch64; use `armv7hl` for older 32-bit devices and
    `i486` for the SDK emulator).
 3. Tap the file in the file manager, or over SSH:
-   `devel-su pkcon install-local harbour-vikunja-0.2.1-1.aarch64.rpm`
+   `devel-su pkcon install-local harbour-vikunja-0.2.2-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
 
@@ -57,7 +57,7 @@ allow, so it is part of the sideload/OpenRepos build only.
 
 | Data | Where it lives | Protection |
 |---|---|---|
-| Access token | Sailfish Secrets collection `harbourvikunjasession` | Encrypted storage plugin, unlocked with the device lock, owner-only access. Every save is read back; if Secrets refuses it, the token goes to `~/.local/share/io.github.manojgudi/harbour-vikunja/api-token.secret` (mode 0600, folder 0700, hidden from other apps by sailjail but not encrypted by the app). Settings shows which one is used. Wiped on sign-out and after 30 days without opening the app. |
+| Access token | Sailfish Secrets collection `harbourvikunjasession` | Encrypted storage plugin, unlocked with the device lock, owner-only access. Every save is read back. If Secrets refuses it, the app asks once whether the token may be kept in `~/.local/share/io.github.manojgudi/harbour-vikunja/api-token.secret` instead (mode 0600, folder 0700, hidden from other sandboxed apps by sailjail but not encrypted; unsandboxed apps and root can read it). If you say no, it stays in memory and you sign in on each start. Settings shows where it is kept and lets you change the choice. Wiped on sign-out and after 30 days without opening the app. |
 | Password, two-factor code | Never stored | Used once to create a scoped API token (projects, tasks, labels, comments, attachments, own user), valid one year and revocable in the web app. |
 | Tasks, projects, comments | Memory only | No offline cache and no HTTP disk cache. Nothing about your tasks is written to the phone. |
 | Image previews | Memory only | Shown from an in-memory image provider (max 40 MB), cleared on sign-out. Never written to storage. |

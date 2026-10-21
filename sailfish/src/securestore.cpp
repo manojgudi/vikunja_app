@@ -56,6 +56,7 @@ bool SecureStore::init()
     if (qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_MEMORY_STORE")) {
         m_lastError = QStringLiteral("disabled by environment");
         m_backend = Memory;
+        m_disabled = true;
         return false;
     }
     if (!qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_FILE_STORE")) {
@@ -65,9 +66,9 @@ bool SecureStore::init()
         if (m_secretsReady)
             removeOldToken();
     }
-    m_backend = m_secretsReady ? Secrets : PrivateFile;
+    m_backend = m_secretsReady ? Secrets : Memory;
     if (!m_secretsReady)
-        qWarning("Sailfish Secrets unavailable (%s); using the app's private folder", qPrintable(m_lastError));
+        qWarning("Sailfish Secrets unavailable (%s)", qPrintable(m_lastError));
     return true;
 }
 
@@ -110,24 +111,35 @@ bool SecureStore::ensureCollection()
 bool SecureStore::write(const QString &name, const QByteArray &data)
 {
     m_memory.insert(name, data);
-    if (m_backend == Memory)
+    if (m_disabled)
         return false;
 
     if (m_secretsReady) {
         bool found = false;
         if (secretsWrite(name, data) && secretsRead(name, &found) == data && found) {
             fileRemove(name);
+            m_secretsFailed = false;
+            m_consentNeeded = false;
             m_backend = Secrets;
             return true;
         }
-        qWarning("Sailfish Secrets did not keep the value (%s); using the app's private folder", qPrintable(m_lastError));
+        qWarning("Sailfish Secrets did not keep the value (%s)", qPrintable(m_lastError));
         secretsRemove(name);
     }
+    m_secretsFailed = true;
+    if (!m_fileAllowed) {
+        // Kept in memory until the user decides.
+        m_consentNeeded = true;
+        m_backend = Memory;
+        return false;
+    }
+    m_consentNeeded = false;
     if (fileWrite(name, data)) {
         m_backend = PrivateFile;
         return true;
     }
     qWarning("Could not store the session; you will need to sign in again next time");
+    m_backend = Memory;
     return false;
 }
 
@@ -140,7 +152,7 @@ QByteArray SecureStore::read(const QString &name, bool *found)
             *found = true;
         return m_memory.value(name);
     }
-    if (m_backend == Memory)
+    if (m_disabled)
         return QByteArray();
 
     bool ok = false;
@@ -152,8 +164,12 @@ QByteArray SecureStore::read(const QString &name, bool *found)
     }
     if (!ok) {
         data = fileRead(name, &ok);
-        if (ok)
+        if (ok) {
             m_backend = PrivateFile;
+            // A file from before the user was asked (version 0.2.1).
+            if (!m_fileAllowed)
+                m_consentNeeded = true;
+        }
     }
     if (!ok)
         return QByteArray();
@@ -168,11 +184,19 @@ void SecureStore::remove(const QString &name)
     if (m_memory.contains(name))
         m_memory[name].fill('\0');
     m_memory.remove(name);
-    if (m_backend == Memory)
+    if (m_disabled)
         return;
     if (m_secretsReady)
         secretsRemove(name);
     fileRemove(name);
+}
+
+void SecureStore::forgetFile(const QString &name)
+{
+    fileRemove(name);
+    m_consentNeeded = false;
+    if (m_backend == PrivateFile)
+        m_backend = Memory;
 }
 
 // --- Sailfish Secrets ------------------------------------------------------------

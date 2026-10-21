@@ -32,6 +32,7 @@ Page {
                 app.loadProjects()
                 app.loadLabels()
                 pageStack.replace(Qt.resolvedUrl("HomePage.qml"))
+                app.askStorageChoice()
                 return
             }
             handleError(r)

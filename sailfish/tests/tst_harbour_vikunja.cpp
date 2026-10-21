@@ -11,6 +11,7 @@
 #include <QMessageAuthenticationCode>
 
 #include "apiclient.h"
+#include "appsettings.h"
 #include "attachmentimages.h"
 #include "redact.h"
 #include "securestore.h"
@@ -92,7 +93,7 @@ private slots:
     {
         QCoreApplication::setOrganizationName(QStringLiteral("harbour-vikunja-tests"));
         QCoreApplication::setApplicationName(QStringLiteral("tst"));
-        QSettings().clear();
+        QSettings(AppSettings::path(), QSettings::IniFormat).clear();
         qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
         m_store.init();
         m_images = new AttachmentImages;
@@ -208,6 +209,25 @@ private slots:
         ApiClient api(&m_store);
         ApiClient::Result r = req(api, QStringLiteral("GET"), QStringLiteral("/projects"));
         QCOMPARE(r.errorCode, QStringLiteral("not_authenticated"));
+    }
+
+    // Sailjail keeps only ~/.config/<org>/<app>/; a settings file next to it
+    // would be lost every time the app closes.
+    void settingsLiveInsideTheSandboxFolder()
+    {
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        QVERIFY(AppSettings::path().startsWith(dir + QStringLiteral("/")));
+        const QString defaultFile = QSettings().fileName();
+        QFile::remove(defaultFile);
+        {
+            ApiClient api(&m_store);
+            api.setSetting(QStringLiteral("probe"), QStringLiteral("1"));
+            api.syncSettings();
+        }
+        QVERIFY(QFile::exists(AppSettings::path()));
+        QVERIFY(!QFile::exists(defaultFile));
+        ApiClient again(&m_store);
+        QCOMPARE(again.setting(QStringLiteral("probe")).toString(), QStringLiteral("1"));
     }
 
     void memoryStoreNeverPersists()
@@ -453,7 +473,7 @@ private slots:
         qunsetenv("HARBOUR_VIKUNJA_MEMORY_STORE");
         const QString file = SecureStore::privateDir() + QStringLiteral("/api-token.secret");
         QFile::remove(file);
-        QSettings().remove(QStringLiteral("security/fileFallback"));
+        QSettings(AppSettings::path(), QSettings::IniFormat).remove(QStringLiteral("security/fileFallback"));
         {
             // Not asked yet: nothing is written, the app asks first.
             SecureStore store;
@@ -533,7 +553,7 @@ private slots:
             QVERIFY(!QFile::exists(file));
             api.logout();
         }
-        QSettings().remove(QStringLiteral("security/fileFallback"));
+        QSettings(AppSettings::path(), QSettings::IniFormat).remove(QStringLiteral("security/fileFallback"));
         qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
     }
 
@@ -584,7 +604,7 @@ private slots:
         r = wait([&](ApiClient::Callback cb) { api.uploadNative(taskId, QStringLiteral("/etc/passwd"), cb); });
         QVERIFY(!r.ok);
         r = wait([&](ApiClient::Callback cb) {
-            api.uploadNative(taskId, QSettings().fileName(), cb); // the app's own settings
+            api.uploadNative(taskId, QSettings(AppSettings::path(), QSettings::IniFormat).fileName(), cb); // the app's own settings
         });
         QVERIFY(!r.ok);
 

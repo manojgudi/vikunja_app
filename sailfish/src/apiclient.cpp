@@ -2,6 +2,7 @@
 
 #include "attachmentimages.h"
 #include "redact.h"
+#include "appsettings.h"
 #include "securestore.h"
 #include "textutil.h"
 
@@ -96,6 +97,7 @@ ApiClient::ApiClient(SecureStore *store, QObject *parent)
     : QObject(parent)
     , m_store(store)
     , m_nam(new QNetworkAccessManager(this))
+    , m_settings(AppSettings::path(), QSettings::IniFormat)
 {
     // No HTTP cache: responses (task contents) are never written to disk.
     m_nam->setCache(nullptr);

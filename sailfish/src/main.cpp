@@ -89,7 +89,6 @@ int main(int argc, char *argv[])
     // background instance saves its settings and leaves directly.
     QObject::connect(&bridge, &AppBridge::backgroundFinished, &api, [&api]() {
         api.syncSettings();
-        QSettings().sync();
         fflush(nullptr);
         ::_exit(0);
     });

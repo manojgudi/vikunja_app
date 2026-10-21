@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.3
+Version:    0.2.4
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -42,6 +42,10 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.4-1
+- Fix being signed out whenever the app closed: settings were written next
+  to the folder sailjail keeps, so inside the sandbox they were lost on exit.
+  They now live in ~/.config/io.github.manojgudi/harbour-vikunja/.
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.3-1
 - Never block startup on Sailfish Secrets: it is contacted after the window
   is up, every request gives up after 4 seconds, and the old 0.2.0 token

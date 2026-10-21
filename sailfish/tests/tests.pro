@@ -17,5 +17,5 @@ DEFINES += APP_VERSION=\\\"test\\\"
 INCLUDEPATH += ../src ../third_party/sailfish-secrets
 LIBS += -l:libsailfishsecrets.so.0
 
-HEADERS += ../src/attachmentimages.h ../src/apiclient.h ../src/redact.h ../src/securestore.h ../src/textutil.h
+HEADERS += ../src/attachmentimages.h ../src/apiclient.h ../src/appsettings.h ../src/redact.h ../src/securestore.h ../src/textutil.h
 SOURCES += tst_harbour_vikunja.cpp ../src/attachmentimages.cpp ../src/apiclient.cpp ../src/redact.cpp ../src/securestore.cpp ../src/textutil.cpp

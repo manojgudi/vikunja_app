@@ -10,7 +10,7 @@ It talks to your own Vikunja server (0.24 or newer) over its REST API.
    current Jolla phones are aarch64; use `armv7hl` for older 32-bit devices and
    `i486` for the SDK emulator).
 3. Tap the file in the file manager, or over SSH:
-   `devel-su pkcon install-local harbour-vikunja-0.2.3-1.aarch64.rpm`
+   `devel-su pkcon install-local harbour-vikunja-0.2.4-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
 
@@ -62,7 +62,7 @@ allow, so it is part of the sideload/OpenRepos build only.
 | Tasks, projects, comments | Memory only | No offline cache and no HTTP disk cache. Nothing about your tasks is written to the phone. |
 | Image previews | Memory only | Shown from an in-memory image provider (max 40 MB), cleared on sign-out. Never written to storage. |
 | Scheduled reminders | timed's event store | Task id, kind and time only, no titles. Cancelled on sign-out. |
-| Server URL, preferences, pinned certificate fingerprints, last-used time | `~/.config/io.github.manojgudi/harbour-vikunja/` | Private to the app under sailjail; created with mode 0600 (`umask 077`). Not secret. Preferences reset on sign-out. |
+| Server URL, preferences, pinned certificate fingerprints, last-used time | `~/.config/io.github.manojgudi/harbour-vikunja/settings.conf` (inside the folder sailjail keeps; the QSettings default next to it would be lost on every exit) | Private to the app under sailjail; created with mode 0600 (`umask 077`). Not secret. Preferences reset on sign-out. |
 | Downloaded attachments | `~/Downloads`, only when you choose "Save" | The dialog tells you the file becomes readable by other apps. File names from the server are sanitised (no path traversal). |
 | Uploads | Read from your Pictures/Documents/Videos/Music/Downloads | Only regular files in your own folders; the app's private data, hidden files and system files are refused. Max 20 MB. |
 
@@ -129,3 +129,4 @@ sfdk build
   it four times in a row with the real token store (`SMOKE_PERSIST=1`,
   `SMOKE_PHASE=login|reopen|signout|after`) to check that a closed and
   reopened app is still signed in and that signing out leaves nothing behind.
+  `run-restart.sh` deletes everything sailjail would not keep between runs.

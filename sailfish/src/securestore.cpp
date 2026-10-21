@@ -1,4 +1,5 @@
 #include "securestore.h"
+#include "appsettings.h"
 
 #include <Secrets/createcollectionrequest.h>
 #include <Secrets/deletesecretrequest.h>
@@ -115,7 +116,7 @@ void SecureStore::connectSecrets()
     m_secretsReady = ensureCollection();
     m_connecting = false;
     if (m_secretsReady) {
-        QSettings settings;
+        QSettings settings(AppSettings::path(), QSettings::IniFormat);
         if (!settings.value(QStringLiteral("security/oldTokenRemoved")).toBool()) {
             removeOldToken();
             settings.setValue(QStringLiteral("security/oldTokenRemoved"), true);

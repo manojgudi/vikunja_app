@@ -1,5 +1,5 @@
 TARGET = harbour-vikunja
-VERSION = 0.2.3
+VERSION = 0.2.4
 
 CONFIG += sailfishapp c++11
 QT += network dbus
@@ -20,6 +20,7 @@ LIBS += -l:libtimed-qt5.so.0
 HEADERS += \
     src/alarms.h \
     src/apiclient.h \
+    src/appsettings.h \
     src/appbridge.h \
     src/attachmentimages.h \
     src/redact.h \

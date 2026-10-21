@@ -9,6 +9,10 @@ import QtQuick 2.0
 //   reopen  - expects to land on the home page without signing in
 //   signout - expects the home page, then signs out
 //   after   - expects the login page again
+//   stale   - the login page is showing although the session is restored
+//             (what a reminder start used to leave behind); expects home
+//   reminder - like a start by timed: a reminder call arrives right away,
+//             racing the start page's own session restore; expects home
 QtObject {
     id: driver
 
@@ -50,7 +54,10 @@ QtObject {
                     win.askStorageChoice()
                     prompt.start()
                 })
-            } else if (smokePhase === "reopen") {
+            } else if (smokePhase === "stale") {
+                win.pageStack.replace(Qt.resolvedUrl(smokeQmlDir + "/pages/LoginPage.qml"), {}, 1)
+                stale.start()
+            } else if (smokePhase === "reopen" || smokePhase === "reminder") {
                 driver.expectPage("HomePage")
                 driver.done()
             } else if (smokePhase === "signout") {
@@ -62,6 +69,14 @@ QtObject {
                 driver.expectPage("LoginPage")
                 driver.done()
             }
+        }
+    }
+
+    property Timer stale: Timer {
+        interval: 4000
+        onTriggered: {
+            driver.expectPage("HomePage")
+            driver.done()
         }
     }
 
@@ -97,6 +112,8 @@ QtObject {
             return
         }
         win = c.createObject(null)
+        if (smokePhase === "reminder")
+            appBridge.reminderDue("test", 0, Math.floor(Date.now() / 1000))
         settle.start()
     }
 }

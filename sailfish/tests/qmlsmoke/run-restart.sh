@@ -13,7 +13,7 @@ run() {
   echo "  config: $(ls ~/.config/harbour-vikunja-smoke/smoke/ 2>/dev/null)"
   echo "  files: $(ls -l ~/.local/share/harbour-vikunja-smoke/smoke/ 2>/dev/null | tail -n +2 | awk '{print $1, $NF}')"
 }
-for seq in "decline after" "login reopen signout after"; do
+for seq in "decline after" "login reopen reminder stale signout after"; do
   echo "== $seq"
   rm -rf ~/.local/share/harbour-vikunja-smoke ~/.config/harbour-vikunja-smoke
   for phase in $seq; do run $phase; done

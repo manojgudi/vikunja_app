@@ -10,7 +10,7 @@ It talks to your own Vikunja server (0.24 or newer) over its REST API.
    current Jolla phones are aarch64; use `armv7hl` for older 32-bit devices and
    `i486` for the SDK emulator).
 3. Tap the file in the file manager, or over SSH:
-   `devel-su pkcon install-local harbour-vikunja-0.2.4-1.aarch64.rpm`
+   `devel-su pkcon install-local harbour-vikunja-0.2.5-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
 

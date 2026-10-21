@@ -55,6 +55,7 @@ int main(int argc, char **argv)
     SecureStore store;
     store.init();
     ApiClient api(&store);
+    api.restoreSession(); // as the app's main() does
     Util util;
     AppBridge bridge;
     Alarms alarms;

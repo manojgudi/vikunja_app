@@ -525,6 +525,8 @@ void ApiClient::loginWithPasswordNative(const QString &url, const QString &usern
 
 bool ApiClient::restoreSession()
 {
+    if (!m_token.isEmpty())
+        return true;
     const QString server = m_settings.value(QStringLiteral("session/server")).toString();
     if (server.isEmpty() || !m_store)
         return false;

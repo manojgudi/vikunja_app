@@ -5,6 +5,7 @@ import Sailfish.Silica 1.0
 // first; the two-factor code is only asked for when the account needs it.
 Page {
     id: page
+    objectName: "loginPage"
     // Light/dark choice from the settings page.
     palette.colorScheme: app.colorScheme
     palette.highlightColor: app.highlightColor
@@ -17,6 +18,19 @@ Page {
                                ? qsTr("You were signed out because the app was not used for %1 days.").arg(30) : ""
 
     backNavigation: false
+
+    // Signed in some other way while this page was showing (for example a
+    // reminder start restored the session): go to the home page.
+    Connections {
+        target: api
+        onSessionChanged: page.leaveIfSignedIn()
+    }
+    onStatusChanged: if (status === PageStatus.Active) leaveIfSignedIn()
+
+    function leaveIfSignedIn() {
+        if (api.authenticated && !busy && status === PageStatus.Active)
+            app.leaveLoginPage()
+    }
 
     function signIn() {
         errorText = ""

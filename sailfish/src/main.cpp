@@ -53,6 +53,11 @@ int main(int argc, char *argv[])
     store.init();
 
     ApiClient api(&store);
+    // Restore the session before any QML or D-Bus call can run. Talking to
+    // Secrets spins a local event loop; done later, a reminder call arriving
+    // during that loop restored the session a second time, re-entrantly, and
+    // that second attempt found nothing and sent the window to the login page.
+    api.restoreSession();
     Util util;
     AppBridge bridge;
     // sailjail starts the app with -prestart when timed or a notification

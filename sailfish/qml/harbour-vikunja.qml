@@ -149,6 +149,23 @@ ApplicationWindow {
         onBusyChanged: app.showStoragePrompt()
     }
 
+    // The login page is showing but the session is already there.
+    property bool leavingLogin: false
+    function leaveLoginPage() {
+        if (leavingLogin)
+            return
+        leavingLogin = true
+        loadUser(function(r) {
+            leavingLogin = false
+            var page = pageStack.currentPage
+            if (!api.authenticated || !page || page.objectName !== "loginPage")
+                return
+            loadProjects()
+            loadLabels()
+            pageStack.replace(Qt.resolvedUrl("pages/HomePage.qml"))
+        })
+    }
+
     function signedOut() {
         currentUser = null
         projects = []

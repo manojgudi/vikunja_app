@@ -5,12 +5,17 @@
 #include <QQmlNetworkAccessManagerFactory>
 #include <QQuickView>
 #include <QScopedPointer>
+#include <QFile>
 #include <QFileInfo>
 #include <QSettings>
 #include <QTimer>
 
 #include <sailfishapp.h>
 #include <cstdio>
+#include <csignal>
+#include <cstring>
+#include <execinfo.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -24,6 +29,34 @@
 #include "textutil.h"
 
 namespace {
+// Crash trace for the session log: written with plain system calls only, as
+// nothing else is safe inside a signal handler.
+char s_logPath[512];
+
+void onFatalSignal(int sig)
+{
+    const int fd = ::open(s_logPath, O_WRONLY | O_APPEND | O_CREAT, 0600);
+    if (fd >= 0) {
+        char line[96];
+        const int n = snprintf(line, sizeof line, "crash: signal %d (%s), pid %d\n", sig, strsignal(sig), int(getpid()));
+        if (n > 0 && ::write(fd, line, size_t(n)) < 0) {}
+        if (sig != SIGTERM) {
+            void *frames[48];
+            backtrace_symbols_fd(frames, backtrace(frames, 48), fd);
+        }
+        ::close(fd);
+    }
+    ::signal(sig, SIG_DFL);
+    ::raise(sig);
+}
+
+void installCrashLog()
+{
+    qstrncpy(s_logPath, QFile::encodeName(AppSettings::logPath()).constData(), sizeof s_logPath);
+    for (int sig : { SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE, SIGTERM })
+        ::signal(sig, onFatalSignal);
+}
+
 // QML never needs the network: all API traffic goes through ApiClient.
 // Blocking the engine's own network access means rich text (task
 // descriptions, comments) can never load remote images or other content.
@@ -62,6 +95,10 @@ int main(int argc, char *argv[])
                       .arg(app->arguments().mid(1).join(QLatin1Char(' ')))
                       .arg(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")))
                       .arg(!qgetenv("DBUS_SESSION_BUS_ADDRESS").isEmpty()));
+    installCrashLog();
+    QObject::connect(app.data(), &QCoreApplication::aboutToQuit, []() {
+        AppSettings::diag(QStringLiteral("exit: quitting normally"));
+    });
 
     SecureStore store;
     store.init();
@@ -95,9 +132,11 @@ int main(int argc, char *argv[])
     // Only claim the bus name once the QML that handles the calls exists:
     // until then the bus keeps the call that started us (D-Bus activation)
     // waiting, instead of it arriving with nobody listening.
-    bridge.registerOnBus();
+    const bool onBus = bridge.registerOnBus();
+    AppSettings::diag(QStringLiteral("dbus: registered=%1 name=%2").arg(onBus).arg(bridge.service()));
     QQuickView *window = view.data();
     QObject::connect(&bridge, &AppBridge::showRequested, window, [window]() {
+        AppSettings::diag(QStringLiteral("window: show, visible=%1").arg(window->isVisible()));
         if (!window->isVisible())
             window->showFullScreen();
         window->raise();
@@ -106,7 +145,11 @@ int main(int argc, char *argv[])
     // Silica crashes in its aboutToQuit handler when the app quits without its
     // window ever having been shown (seen in the background test), so a
     // background instance saves its settings and leaves directly.
+    QObject::connect(window, &QWindow::visibleChanged, window, [](bool visible) {
+        AppSettings::diag(QStringLiteral("window: visible=%1").arg(visible));
+    });
     QObject::connect(&bridge, &AppBridge::backgroundFinished, &api, [&api]() {
+        AppSettings::diag(QStringLiteral("exit: background work done"));
         api.syncSettings();
         fflush(nullptr);
         ::_exit(0);

@@ -3,6 +3,7 @@
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QDBusError>
 #include <QDBusMessage>
 #include <QDesktopServices>
 #include <QFileInfo>
@@ -18,10 +19,14 @@ AppBridge::AppBridge(QObject *parent)
 bool AppBridge::registerOnBus()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected())
+    if (!bus.isConnected()) {
+        AppSettings::diag(QStringLiteral("dbus: no session bus: %1").arg(bus.lastError().message()));
         return false;
-    if (!bus.registerObject(path(), this, QDBusConnection::ExportScriptableSlots))
+    }
+    if (!bus.registerObject(path(), this, QDBusConnection::ExportScriptableSlots)) {
+        AppSettings::diag(QStringLiteral("dbus: object not registered: %1").arg(bus.lastError().message()));
         return false;
+    }
     // Sailjail lets an app own a bus name made of its organization and
     // application name.
     const QStringList candidates = {
@@ -33,6 +38,7 @@ bool AppBridge::registerOnBus()
             m_service = name;
             return true;
         }
+        AppSettings::diag(QStringLiteral("dbus: name %1 refused: %2").arg(name, bus.lastError().message()));
     }
     qWarning("Could not register a D-Bus service name; notification actions will not work");
     return false;
@@ -82,6 +88,8 @@ void AppBridge::quitIfIdle()
     QTimer::singleShot(3000, this, [this]() {
         if (m_background && m_pendingWork == 0)
             emit backgroundFinished();
+        else
+            AppSettings::diag(QStringLiteral("background: staying, background=%1 pending=%2").arg(m_background).arg(m_pendingWork));
     });
 }
 
@@ -121,6 +129,7 @@ void AppBridge::reminderDue(const QString &kind, int taskId, qlonglong time)
 
 void AppBridge::markDone(int taskId)
 {
+    AppSettings::diag(QStringLiteral("dbus: markDone %1").arg(taskId));
     if (taskId > 0 && callerAllowed())
         emit markDoneRequested(taskId);
 }

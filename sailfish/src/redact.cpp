@@ -1,4 +1,5 @@
 #include "redact.h"
+#include "appsettings.h"
 
 #include <QRegularExpression>
 #include <cstdio>
@@ -49,6 +50,18 @@ static void messageHandler(QtMsgType type, const QMessageLogContext &, const QSt
     const QByteArray line = text(msg).toLocal8Bit();
     fprintf(stderr, "[%s] %s\n", level, line.constData());
     fflush(stderr);
+    // Qt and QML warnings also go to the session log (redacted, shortened),
+    // so a failure on the phone can be read without the journal.
+    if (type != QtDebugMsg && type != QtInfoMsg && QCoreApplication::instance()
+            && !msg.startsWith(QLatin1String("vikunja-session:"))) {
+        static bool busy = false;
+        if (!busy) {
+            busy = true;
+            AppSettings::appendLog(QStringLiteral("qt %1: %2").arg(QLatin1String(level))
+                                   .arg(text(msg).left(300)));
+            busy = false;
+        }
+    }
 }
 
 void installMessageHandler()

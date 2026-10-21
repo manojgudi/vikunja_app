@@ -24,28 +24,39 @@ inline QString path()
     return dir + QStringLiteral("/settings.conf");
 }
 
-// Session diagnostics, never tokens or task data: a short log in the app's
-// private cache folder (~/.cache/<org>/<app>/session.log), plus a warning
-// for the journal. Kept to the last 200 lines.
-inline void diag(const QString &message)
+inline QString logPath()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(dir);
+    return dir + QStringLiteral("/session.log");
+}
+
+// Appends one timestamped line to the session log, kept to the last 300 lines.
+inline void appendLog(const QString &message)
 {
     const QString line = QDateTime::currentDateTime().toString(Qt::ISODate)
             + QStringLiteral(" [") + QString::number(QCoreApplication::applicationPid())
             + QStringLiteral("] ") + message;
-    qWarning("vikunja-session: %s", qPrintable(message));
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    QDir().mkpath(dir);
-    QFile file(dir + QStringLiteral("/session.log"));
+    QFile file(logPath());
     QStringList lines;
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'), QString::SkipEmptyParts);
         file.close();
     }
     lines << line;
-    while (lines.size() > 200)
+    while (lines.size() > 300)
         lines.removeFirst();
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
         file.write((lines.join(QLatin1Char('\n')) + QLatin1Char('\n')).toUtf8());
+}
+
+// Session diagnostics, never tokens or task data: a short log in the app's
+// private cache folder (~/.cache/<org>/<app>/session.log), plus a warning
+// for the journal.
+inline void diag(const QString &message)
+{
+    qWarning("vikunja-session: %s", qPrintable(message));
+    appendLog(message);
 }
 
 inline QSettings *create(QObject *parent = nullptr)

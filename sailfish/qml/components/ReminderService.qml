@@ -171,6 +171,8 @@ QtObject {
         n.previewBody = n.body
         addActions(n, task.id)
         n.publish()
+        api.diag("notify: published " + kind + " for task " + task.id + " (id type " + typeof task.id
+                 + "), open via " + appBridge.service + " replacesId=" + n.replacesId)
         notifications.push(n)
     }
 

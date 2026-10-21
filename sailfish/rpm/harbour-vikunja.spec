@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.7
+Version:    0.2.8
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -43,6 +43,11 @@ desktop-file-install --delete-original \
 %{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.8-1
+- Diagnostics for opening a task from a reminder: the session log now
+  records the D-Bus name, each incoming call, window changes, how the app
+  exits, crash signals with a backtrace, and Qt/QML warnings (redacted).
+
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.7-1
 - Opening from a reminder keeps you signed in: Secrets treats a reminder
   start and a launcher start as different apps, so the token is now split

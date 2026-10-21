@@ -45,7 +45,7 @@ Page {
                 app.currentUser = r.data
                 app.loadProjects()
                 app.loadLabels()
-                pageStack.replace(Qt.resolvedUrl("HomePage.qml"))
+                app.goHome()
                 app.askStorageChoice()
                 return
             }

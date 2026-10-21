@@ -59,6 +59,9 @@ int main(int argc, char **argv)
     Util util;
     AppBridge bridge;
     Alarms alarms;
+    // Like a start by D-Bus activation (-prestart): no window until asked.
+    if (qEnvironmentVariableIsSet("SMOKE_BACKGROUND"))
+        bridge.setBackground(true);
     if (qEnvironmentVariableIsSet("SMOKE_REGISTER_BUS"))
         bridge.registerOnBus();
 

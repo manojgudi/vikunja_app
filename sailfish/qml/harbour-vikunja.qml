@@ -120,6 +120,55 @@ ApplicationWindow {
         pageStack.push(Qt.resolvedUrl("pages/TaskPage.qml"), { taskId: taskId })
     }
 
+    // Replaces whatever is showing (start or login page, and anything a
+    // notification put on top of it) with the home page.
+    function goHome() {
+        pageStack.replaceAbove(null, Qt.resolvedUrl("pages/HomePage.qml"), {}, PageStackAction.Immediate)
+    }
+
+    function homeShowing() {
+        var p = pageStack.currentPage
+        var bottom = null
+        while (p) {
+            bottom = p
+            p = pageStack.previousPage(p)
+        }
+        return bottom !== null && bottom.objectName === "homePage"
+    }
+
+    // A task from a tapped reminder. It goes on top of the home page; while
+    // the app is still starting (or signing in) it waits, because a page
+    // pushed onto the start page is left with the endless start spinner
+    // under it once the start page tries to go home.
+    property int pendingTaskId: 0
+    function showTask(taskId) {
+        pendingTaskId = taskId
+        openPendingTask()
+    }
+    // From page status handlers: pushing inside one confuses the page stack.
+    function openPendingTaskSoon() {
+        if (pendingTaskId > 0)
+            pendingTimer.restart()
+    }
+    Timer {
+        id: pendingTimer
+        interval: 0
+        onTriggered: app.openPendingTask()
+    }
+    function openPendingTask() {
+        var taskId = pendingTaskId
+        if (taskId <= 0 || !api.authenticated || !homeShowing() || pageStack.busy)
+            return
+        pendingTaskId = 0
+        var top = pageStack.currentPage
+        if (top && top.objectName === "taskPage" && top.taskId === taskId) {
+            top.load()
+            return
+        }
+        api.diag("opening task " + taskId + " from a notification")
+        openTask(taskId)
+    }
+
     function openAddTask(projectId, bucketId) {
         var dialog = pageStack.push(Qt.resolvedUrl("pages/AddTaskDialog.qml"),
                                     { projectId: projectId || defaultProjectId || (projects.length ? projects[0].id : 0),
@@ -163,7 +212,7 @@ ApplicationWindow {
                 return
             loadProjects()
             loadLabels()
-            pageStack.replace(Qt.resolvedUrl("pages/HomePage.qml"))
+            goHome()
         })
     }
 
@@ -173,6 +222,7 @@ ApplicationWindow {
         projects = []
         labels = []
         reminderService.clear()
+        pendingTaskId = 0
         pageStack.clear()
         pageStack.push(Qt.resolvedUrl("pages/LoginPage.qml"), {}, PageStackAction.Immediate)
     }
@@ -188,14 +238,18 @@ ApplicationWindow {
     }
 
     Connections {
+        target: pageStack
+        onBusyChanged: if (!pageStack.busy) app.openPendingTask()
+    }
+
+    Connections {
         target: appBridge
         onActivateRequested: app.activate()
         onShowRequested: api.diag("window shown: page=" + String(pageStack.currentPage).split("(")[0]
                                   + " authenticated=" + api.authenticated)
         onOpenTaskRequested: {
             app.activate()
-            if (api.authenticated)
-                app.openTask(taskId)
+            app.showTask(taskId)
         }
         onMarkDoneRequested: {
             if (!api.authenticated)

@@ -6,6 +6,7 @@ import "../js/util.js" as Util
 
 Page {
     id: page
+    objectName: "taskPage"
     // Light/dark choice from the settings page.
     palette.colorScheme: app.colorScheme
     palette.highlightColor: app.highlightColor

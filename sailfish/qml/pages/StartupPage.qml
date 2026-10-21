@@ -15,10 +15,6 @@ Page {
         running: true
     }
 
-    function goHome() {
-        pageStack.replace(Qt.resolvedUrl("HomePage.qml"), {}, PageStackAction.Immediate)
-    }
-
     Timer {
         // Let the page stack finish its initial push first.
         interval: 0
@@ -45,7 +41,7 @@ Page {
                 }
                 app.loadProjects()
                 app.loadLabels()
-                goHome()
+                app.goHome()
                 app.askStorageChoice()
             })
         }

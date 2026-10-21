@@ -5,6 +5,7 @@ import "../js/util.js" as Util
 
 Page {
     id: page
+    objectName: "homePage"
     // Light/dark choice from the settings page.
     palette.colorScheme: app.colorScheme
     palette.highlightColor: app.highlightColor
@@ -68,6 +69,7 @@ Page {
         if (status === PageStatus.Active) {
             if (pageStack.nextPage(page) === null)
                 pageStack.pushAttached(Qt.resolvedUrl("ProjectsPage.qml"))
+            app.openPendingTaskSoon()
         }
     }
 

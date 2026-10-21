@@ -18,6 +18,8 @@ Dialog {
     property var projectChoices: []
     property string originalDescription: task ? util.htmlToPlain(task.description) : ""
     signal saved(var task)
+    property alias titleText: titleField.text
+    property alias doneChecked: doneSwitch.checked
 
     canAccept: titleField.text.trim().length > 0
 

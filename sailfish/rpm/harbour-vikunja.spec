@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.9
+Version:    0.2.10
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -43,6 +43,14 @@ desktop-file-install --delete-original \
 %{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.10-1
+- A task opened from a reminder sits on top of the home page: before, it
+  was pushed onto the start page while that was still loading, so Back
+  showed an endless spinner. The task waits for the home page (or for
+  signing in) and a second tap on the same reminder doesn't stack a copy.
+- Lifecycle test for tapped reminders: back, tap again, edit, save, cancel,
+  mark done, Mark done from the notification, signed-out tap.
+
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.9-1
 - Tapping a reminder opens the task again (and "Mark done" works): lipstick
   sends the task id as a double, which the app refused as an unknown method,

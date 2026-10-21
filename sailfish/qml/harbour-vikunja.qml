@@ -20,6 +20,25 @@ ApplicationWindow {
 
     property alias reminders: reminderService
 
+    // "system" follows the ambience; "light" and "dark" use a plain
+    // background with matching text colours.
+    property string themeMode: String(api.setting("theme", "system"))
+    readonly property int colorScheme: themeMode === "light" ? Theme.DarkOnLight
+                                     : themeMode === "dark" ? Theme.LightOnDark
+                                     : Theme.colorScheme
+    readonly property color highlightColor: themeMode === "system" ? Theme.highlightColor
+                                          : Theme.highlightFromColor(Theme.highlightColor, colorScheme)
+    readonly property color secondaryHighlightColor: themeMode === "system" ? Theme.secondaryHighlightColor
+                                                   : Theme.secondaryHighlightFromColor(Theme.highlightColor, colorScheme)
+    readonly property color pageBackground: themeMode === "light" ? "#f5f5f7"
+                                          : themeMode === "dark" ? "#121216"
+                                          : "transparent"
+
+    function setThemeMode(mode) {
+        api.setSetting("theme", mode)
+        themeMode = mode
+    }
+
     signal taskChanged(int taskId)
 
     initialPage: Component { StartupPage { } }
@@ -136,12 +155,32 @@ ApplicationWindow {
         }
         onMarkDoneRequested: {
             if (!api.authenticated)
+                api.restoreSession()
+            if (!api.authenticated)
                 return
             api.request("GET", "/tasks/" + taskId, {}, null, function(r) {
                 if (r.ok)
-                    app.setTaskDone(r.data, true)
+                    app.setTaskDone(r.data, true, function() { appBridge.backgroundDone() })
+                else
+                    appBridge.backgroundDone()
             })
         }
+        onReminderRequested: {
+            // The app may have been started just for this call.
+            if (!api.authenticated && !api.restoreSession() && api.sessionNotice === "inactive") {
+                // Signed out after 30 days without use: no more reminders.
+                alarms.clear()
+                appBridge.backgroundDone()
+                return
+            }
+            reminderService.handleAlarm(taskId, kind, time, function() { appBridge.backgroundDone() })
+        }
+    }
+
+    // Opening the app (not a background start) keeps the session alive.
+    Connections {
+        target: Qt.application
+        onStateChanged: if (Qt.application.state === Qt.ApplicationActive && !appBridge.background) api.touchSession()
     }
 
     ReminderService {

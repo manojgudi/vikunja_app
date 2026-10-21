@@ -5,6 +5,11 @@ import "../js/util.js" as Util
 
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property int projectId
     property var project: app.projectById(projectId)
@@ -16,6 +21,21 @@ Page {
     property bool showDone: api.setting("showDone/" + projectId, false) === true || api.setting("showDone/" + projectId, false) === "true"
     property int currentPage: 1
     property int totalPages: 1
+    // Projects with a kanban view open as a board unless the list was chosen.
+    property string layout: String(api.setting("layout/" + projectId, "board"))
+    readonly property bool boardMode: kanbanView !== null && layout !== "list"
+    property alias board: boardLoader.item
+
+    allowedOrientations: Orientation.All
+
+    function setLayout(value) {
+        layout = value
+        api.setSetting("layout/" + projectId, value)
+        if (value === "list") {
+            currentPage = 1
+            loadTasks(false)
+        }
+    }
 
     function loadProject() {
         loading = true
@@ -37,7 +57,10 @@ Page {
                     kanbanView = views[i]
             }
             currentPage = 1
-            loadTasks(false)
+            if (boardMode)
+                loading = false
+            else
+                loadTasks(false)
         })
     }
 
@@ -74,14 +97,28 @@ Page {
 
     Connections {
         target: app
-        onTaskRevisionChanged: { page.currentPage = 1; page.loadTasks(false) }
+        onTaskRevisionChanged: if (!page.boardMode) { page.currentPage = 1; page.loadTasks(false) }
     }
 
     ListModel { id: model }
 
+    Loader {
+        id: boardLoader
+        anchors.fill: parent
+        active: page.boardMode
+        sourceComponent: KanbanBoard {
+            hostPage: page
+            projectId: page.projectId
+            view: page.kanbanView
+            project: page.project
+            onShowListRequested: page.setLayout("list")
+        }
+    }
+
     SilicaListView {
         anchors.fill: parent
         model: model
+        visible: !page.boardMode
 
         header: PageHeader {
             title: page.project ? page.project.title : ""
@@ -92,8 +129,8 @@ Page {
             busy: page.loading
             MenuItem {
                 visible: page.kanbanView !== null
-                text: qsTr("Kanban board")
-                onClicked: pageStack.push(Qt.resolvedUrl("KanbanPage.qml"), { projectId: page.projectId, view: page.kanbanView, project: page.project })
+                text: qsTr("Show as board")
+                onClicked: page.setLayout("board")
             }
             MenuItem {
                 text: page.showDone ? qsTr("Hide done tasks") : qsTr("Show done tasks")

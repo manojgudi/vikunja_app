@@ -5,6 +5,11 @@ import "../js/util.js" as Util
 
 Dialog {
     id: dialog
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property var task
     property var reminderDates: []
@@ -44,20 +49,13 @@ Dialog {
     }
 
     function pickReminder(index) {
-        var current = index >= 0 ? reminderDates[index] : (dueField.dateValue || new Date())
-        var d = pageStack.push("Sailfish.Silica.DatePickerDialog", { date: current })
+        var current = index >= 0 ? reminderDates[index] : (dueField.dateValue || Util.addDays(new Date(), 1))
+        var d = pageStack.push(Qt.resolvedUrl("DateTimeDialog.qml"), { selected: current, title: qsTr("Reminder") })
         d.accepted.connect(function() {
-            var date = d.date
-            var t = pageStack.push("Sailfish.Silica.TimePickerDialog", {
-                hourMode: DateTime.TwentyFourHours, hour: current.getHours(), minute: current.getMinutes()
-            })
-            t.accepted.connect(function() {
-                var picked = new Date(date.getFullYear(), date.getMonth(), date.getDate(), t.hour, t.minute, 0)
-                var list = reminderDates.slice()
-                if (index >= 0) list[index] = picked
-                else list.push(picked)
-                reminderDates = list
-            })
+            var list = reminderDates.slice()
+            if (index >= 0) list[index] = d.selected
+            else list.push(d.selected)
+            reminderDates = list
         })
     }
 

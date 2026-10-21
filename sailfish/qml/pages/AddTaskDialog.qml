@@ -5,28 +5,37 @@ import "../js/util.js" as Util
 
 Dialog {
     id: dialog
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property int projectId
     property int bucketId: 0
     property string initialTitle: ""
     property var projectChoices: []
-    property var customDue: null
 
     canAccept: titleField.text.trim().length > 0 && projectChoices.length > 0
 
-    function dueFromChoice() {
-        var now = new Date()
-        var today = Util.startOfDay(now)
-        switch (dueBox.currentIndex) {
-        case 1: return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 17, 0)
-        case 2: var t = Util.addDays(today, 1); t.setHours(9); return t
-        case 3: var m = Util.addDays(today, ((8 - today.getDay()) % 7) || 7); m.setHours(9); return m
-        case 4: var s = Util.addDays(today, (6 - today.getDay() + 7) % 7); s.setHours(10); return s
-        case 5: var w = Util.addDays(today, 7); w.setHours(9); return w
-        case 6: return customDue
+    // Quick presets fill in the due field; the user can still change the
+    // date and time by tapping it.
+    function preset(kind) {
+        var today = Util.startOfDay(new Date())
+        var d = null
+        switch (kind) {
+        case "today": d = new Date(today.getTime()); d.setHours(17); break
+        case "tomorrow": d = Util.addDays(today, 1); d.setHours(9); break
+        case "monday": d = Util.addDays(today, ((8 - today.getDay()) % 7) || 7); d.setHours(9); break
+        case "weekend": d = Util.addDays(today, (6 - today.getDay() + 7) % 7); d.setHours(10); break
+        case "week": d = Util.addDays(today, 7); d.setHours(9); break
         }
-        return null
+        dueField.dateValue = d
     }
+
+    function dueValue() { return dueField.dateValue }
+    function setDue(d) { dueField.dateValue = d }
+    function setTitle(t) { titleField.text = t }
 
     Component.onCompleted: {
         var choices = []
@@ -43,7 +52,7 @@ Dialog {
     onAccepted: {
         var project = projectChoices[projectBox.currentIndex]
         var body = { title: titleField.text.trim() }
-        var due = dueFromChoice()
+        var due = dueField.dateValue
         if (due)
             body.due_date = Util.toApiDate(due)
         if (bucketId > 0)
@@ -91,27 +100,39 @@ Dialog {
                 }
             }
 
-            ComboBox {
-                id: dueBox
-                width: parent.width
+            DateTimeField {
+                id: dueField
                 label: qsTr("Due")
-                menu: ContextMenu {
-                    MenuItem { text: qsTr("No due date") }
-                    MenuItem { text: qsTr("Today") }
-                    MenuItem { text: qsTr("Tomorrow") }
-                    MenuItem { text: qsTr("Next Monday") }
-                    MenuItem { text: qsTr("This weekend") }
-                    MenuItem { text: qsTr("In one week") }
-                    MenuItem { text: qsTr("Pick a date…") }
-                }
-                onCurrentIndexChanged: if (currentIndex === 6) customField.clicked(null)
             }
 
-            DateTimeField {
-                id: customField
-                visible: dueBox.currentIndex === 6
-                label: qsTr("Due date")
-                onDateValueChanged: dialog.customDue = dateValue
+            Flow {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                spacing: Theme.paddingMedium
+                Repeater {
+                    model: [
+                        { kind: "", name: qsTr("None") },
+                        { kind: "today", name: qsTr("Today") },
+                        { kind: "tomorrow", name: qsTr("Tomorrow") },
+                        { kind: "monday", name: qsTr("Next Monday") },
+                        { kind: "weekend", name: qsTr("Weekend") },
+                        { kind: "week", name: qsTr("In a week") }
+                    ]
+                    Button {
+                        text: modelData.name
+                        preferredWidth: Theme.buttonWidthExtraSmall
+                        onClicked: dialog.preset(modelData.kind)
+                    }
+                }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryColor
+                text: qsTr("Tap the due date to change the day or time.")
             }
 
             Label {

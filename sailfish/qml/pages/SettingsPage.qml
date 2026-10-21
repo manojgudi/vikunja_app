@@ -4,6 +4,11 @@ import "../js/util.js" as Util
 
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property var pins: api.trustedCertificates()
     property var insecure: api.insecureHosts()
@@ -89,7 +94,9 @@ Page {
             SectionHeader { text: qsTr("Notifications") }
             TextSwitch {
                 text: qsTr("Reminders and due dates")
-                description: qsTr("Shown while the app is running or minimised. Close the app and no notifications arrive.")
+                description: app.reminders.systemAlarms
+                             ? qsTr("Scheduled with the system alarm service, so they arrive even when the app is closed. Tasks added on other devices are picked up every few hours or when you open the app.")
+                             : qsTr("The system alarm service is not available, so reminders only arrive while the app is running.")
                 checked: page.boolSetting("notifications", true)
                 onCheckedChanged: {
                     api.setSetting("notifications", checked)
@@ -107,10 +114,45 @@ Page {
                     app.hideDetails = checked
                 }
             }
+            Label {
+                visible: app.reminders.systemAlarms && app.reminders.enabled
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                color: Theme.secondaryHighlightColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: app.reminders.lastSync.length > 0
+                      ? qsTr("%n upcoming reminder(s) scheduled, last synced at %1", "", app.reminders.scheduled).arg(app.reminders.lastSync)
+                      : qsTr("Not synced yet")
+            }
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Send test notification")
-                onClicked: app.reminders.sendTest()
+                onClicked: app.reminders.sendTest(false)
+            }
+            Button {
+                visible: app.reminders.systemAlarms
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Test reminder in 1 minute")
+                onClicked: {
+                    if (alarms.scheduleTest(60))
+                        app.notify(qsTr("Close the app now; the reminder arrives in a minute."))
+                    else
+                        app.notify(qsTr("Could not schedule the test reminder"))
+                }
+            }
+
+            SectionHeader { text: qsTr("Appearance") }
+            ComboBox {
+                label: qsTr("Theme")
+                description: qsTr("Remembered on this device")
+                currentIndex: app.themeMode === "light" ? 1 : app.themeMode === "dark" ? 2 : 0
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Follow ambience") }
+                    MenuItem { text: qsTr("Light") }
+                    MenuItem { text: qsTr("Dark") }
+                }
+                onCurrentIndexChanged: app.setThemeMode(["system", "light", "dark"][currentIndex])
             }
 
             SectionHeader { text: qsTr("Trusted certificates") }
@@ -195,13 +237,12 @@ Page {
                 })
             }
             Label {
-                visible: api.authMethod === "password"
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Signing out removes the token from this phone. To revoke it on the server too, delete it in the Vikunja web app under Settings → API Tokens.")
+                text: qsTr("Signing out deletes the access token from this phone, cancels scheduled reminders, removes shown notifications and image previews, and resets your preferences here (except the theme). The token cannot revoke itself, so to invalidate it on the server too, delete it in the Vikunja web app under Settings → API Tokens. Files you saved to Downloads stay there.")
             }
         }
         VerticalScrollDecorator {}

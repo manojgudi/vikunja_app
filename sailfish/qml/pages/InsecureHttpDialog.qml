@@ -2,6 +2,11 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 
 Dialog {
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
     property string host
 
     Column {

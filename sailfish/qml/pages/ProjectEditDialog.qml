@@ -5,6 +5,11 @@ import "../js/util.js" as Util
 
 Dialog {
     id: dialog
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property var project: null
     property int parentId: 0

@@ -6,6 +6,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrl>
 
 AppBridge::AppBridge(QObject *parent)
@@ -57,16 +58,61 @@ bool AppBridge::callerAllowed()
     return ok;
 }
 
+void AppBridge::setBackground(bool background)
+{
+    if (m_background == background)
+        return;
+    m_background = background;
+    emit backgroundChanged();
+}
+
+void AppBridge::backgroundDone()
+{
+    if (m_pendingWork > 0)
+        --m_pendingWork;
+    quitIfIdle();
+}
+
+void AppBridge::quitIfIdle()
+{
+    if (!m_background || m_pendingWork > 0)
+        return;
+    // Give the notification server a moment to receive what was published.
+    QTimer::singleShot(3000, this, [this]() {
+        if (m_background && m_pendingWork == 0)
+            emit backgroundFinished();
+    });
+}
+
 void AppBridge::activate()
 {
+    setBackground(false);
+    emit showRequested();
     emit activateRequested();
 }
 
 void AppBridge::openTask(int taskId)
 {
     // Opening a task only shows it, so any caller may do that.
+    setBackground(false);
+    emit showRequested();
     if (taskId > 0)
         emit openTaskRequested(taskId);
+    else
+        emit activateRequested();
+}
+
+void AppBridge::reminderDue(const QString &kind, int taskId, qlonglong time)
+{
+    // Anyone on the session bus could call this, so the arguments are only a
+    // hint: the QML side re-checks the task on the server before it shows
+    // anything.
+    static const QStringList kinds = { QStringLiteral("due"), QStringLiteral("reminder"),
+                                       QStringLiteral("sync"), QStringLiteral("test") };
+    if (taskId < 0 || !kinds.contains(kind))
+        return;
+    ++m_pendingWork;
+    emit reminderRequested(taskId, kind, double(time) * 1000.0);
 }
 
 void AppBridge::markDone(int taskId)

@@ -3,6 +3,11 @@ import Sailfish.Silica 1.0
 
 // Asks whether to pin a certificate that failed normal validation.
 Dialog {
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
     property var certificate: ({})
 
     SilicaFlickable {

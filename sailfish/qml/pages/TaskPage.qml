@@ -1,10 +1,16 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import Sailfish.Pickers 1.0
 import "../components"
 import "../js/util.js" as Util
 
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property int taskId
     property var task: null
@@ -49,6 +55,60 @@ Page {
                     app.notify(qsTr("No app found to open this file"))
             })
         })
+    }
+
+    property bool uploading: false
+
+    function isImage(att) {
+        var mime = att.file && att.file.mime ? String(att.file.mime) : ""
+        if (mime.indexOf("image/") === 0)
+            return /^image\/(png|jpeg|gif|webp|bmp)$/.test(mime)
+        return /\.(png|jpe?g|gif|webp|bmp)$/i.test(att.file ? att.file.name : "")
+    }
+
+    function openAttachment(att) {
+        if (isImage(att)) {
+            var v = pageStack.push(Qt.resolvedUrl("AttachmentViewerPage.qml"), { taskId: task.id, attachment: att })
+            v.saveRequested.connect(function() { download(att) })
+        } else {
+            download(att)
+        }
+    }
+
+    function upload(path) {
+        uploading = true
+        api.uploadAttachment(task.id, path, function(r) {
+            uploading = false
+            if (!r.ok) {
+                app.showError(r, qsTr("Could not attach the file"))
+                return
+            }
+            app.notify(qsTr("File attached"))
+            load()
+        })
+    }
+
+    function pickFile() {
+        pageStack.push(pickerComponent)
+    }
+
+    function deleteAttachment(item, att) {
+        item.remorseDelete(function() {
+            api.request("DELETE", "/tasks/" + task.id + "/attachments/" + att.id, {}, null, function(r) {
+                if (r.ok) load(); else app.showError(r)
+            })
+        })
+    }
+
+    Component {
+        id: pickerComponent
+        ContentPickerPage {
+            title: qsTr("Attach a file")
+            onSelectedContentPropertiesChanged: {
+                if (selectedContentProperties && selectedContentProperties.filePath)
+                    page.upload(selectedContentProperties.filePath)
+            }
+        }
     }
 
     Component.onCompleted: load()
@@ -202,17 +262,18 @@ Page {
 
             SectionHeader {
                 text: qsTr("Attachments")
-                visible: !!(page.task && page.task.attachments && page.task.attachments.length > 0)
+                visible: page.task !== null
             }
             Repeater {
                 model: page.task && page.task.attachments ? page.task.attachments : []
                 ListItem {
+                    id: attItem
                     contentHeight: Theme.itemSizeSmall
                     Icon {
                         id: attIcon
                         x: Theme.horizontalPageMargin
                         anchors.verticalCenter: parent.verticalCenter
-                        source: "image://theme/icon-m-attach"
+                        source: page.isImage(modelData) ? "image://theme/icon-m-image" : "image://theme/icon-m-attach"
                     }
                     Label {
                         anchors {
@@ -223,7 +284,45 @@ Page {
                         text: modelData.file.name
                         truncationMode: TruncationMode.Fade
                     }
-                    onClicked: page.download(modelData)
+                    onClicked: page.openAttachment(modelData)
+                    menu: ContextMenu {
+                        MenuItem {
+                            text: page.isImage(modelData) ? qsTr("View") : qsTr("Open")
+                            onClicked: page.openAttachment(modelData)
+                        }
+                        MenuItem {
+                            visible: page.isImage(modelData)
+                            text: qsTr("Save to Downloads")
+                            onClicked: page.download(modelData)
+                        }
+                        MenuItem {
+                            text: qsTr("Delete")
+                            onClicked: page.deleteAttachment(attItem, modelData)
+                        }
+                    }
+                }
+            }
+
+            BackgroundItem {
+                visible: page.task !== null
+                height: Theme.itemSizeSmall
+                enabled: !page.uploading
+                onClicked: page.pickFile()
+                Icon {
+                    id: addIcon
+                    x: Theme.horizontalPageMargin
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "image://theme/icon-m-add"
+                }
+                Label {
+                    anchors { left: addIcon.right; leftMargin: Theme.paddingMedium; verticalCenter: parent.verticalCenter }
+                    text: page.uploading ? qsTr("Uploading…") : qsTr("Attach a photo or file")
+                    color: parent.highlighted ? Theme.highlightColor : Theme.primaryColor
+                }
+                BusyIndicator {
+                    anchors { right: parent.right; rightMargin: Theme.horizontalPageMargin; verticalCenter: parent.verticalCenter }
+                    size: BusyIndicatorSize.ExtraSmall
+                    running: page.uploading
                 }
             }
 

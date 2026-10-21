@@ -8,9 +8,13 @@
 #include <QQmlEngine>
 #include <QStringList>
 #include <QTimer>
+#include <QDir>
+#include <QImage>
 #include <cstdio>
 
+#include "alarms.h"
 #include "apiclient.h"
+#include "attachmentimages.h"
 #include "appbridge.h"
 #include "securestore.h"
 #include "textutil.h"
@@ -42,17 +46,31 @@ int main(int argc, char **argv)
     ApiClient api(&store);
     Util util;
     AppBridge bridge;
+    Alarms alarms;
+    if (qEnvironmentVariableIsSet("SMOKE_REGISTER_BUS"))
+        bridge.registerOnBus();
 
     QQmlEngine engine;
     QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
     api.setEngine(&engine);
+    engine.addImageProvider(QStringLiteral("attachment"), new AttachmentImages);
     engine.rootContext()->setContextProperty(QStringLiteral("api"), &api);
     engine.rootContext()->setContextProperty(QStringLiteral("util"), &util);
     engine.rootContext()->setContextProperty(QStringLiteral("appBridge"), &bridge);
+    engine.rootContext()->setContextProperty(QStringLiteral("alarms"), &alarms);
     engine.rootContext()->setContextProperty(QStringLiteral("appVersion"), QStringLiteral("smoke"));
     engine.rootContext()->setContextProperty(QStringLiteral("smokeUrl"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_URL")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokeToken"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_TOKEN")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokeQmlDir"), qmlDir);
+
+    // A photo in ~/Pictures, as the file picker would return it.
+    QDir pictures(QDir::homePath() + QStringLiteral("/Pictures"));
+    pictures.mkpath(QStringLiteral("."));
+    const QString photo = pictures.filePath(QStringLiteral("smoke-photo.png"));
+    QImage img(120, 80, QImage::Format_RGB32);
+    img.fill(Qt::blue);
+    img.save(photo, "PNG");
+    engine.rootContext()->setContextProperty(QStringLiteral("smokePhoto"), photo);
 
     QQmlComponent driver(&engine, QUrl::fromLocalFile(QString::fromLocal8Bit(qgetenv("SMOKE_DRIVER"))));
     QObject *obj = driver.create();

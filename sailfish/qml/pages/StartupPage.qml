@@ -3,6 +3,11 @@ import Sailfish.Silica 1.0
 
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     BusyIndicator {
         anchors.centerIn: parent
@@ -20,9 +25,15 @@ Page {
         running: true
         onTriggered: {
             if (!api.restoreSession()) {
+                // Not when started in the background: right after a reboot the
+                // token can be locked until the phone is unlocked once.
+                if (!appBridge.background || api.sessionNotice === "inactive")
+                    alarms.clear()
                 pageStack.replace(Qt.resolvedUrl("LoginPage.qml"), {}, PageStackAction.Immediate)
                 return
             }
+            if (!appBridge.background)
+                api.touchSession()
             app.loadUser(function(r) {
                 if (!api.authenticated)
                     return // token rejected; the app already went back to the login page

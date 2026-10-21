@@ -1,5 +1,5 @@
 TARGET = harbour-vikunja
-VERSION = 0.1.0
+VERSION = 0.2.0
 
 CONFIG += sailfishapp c++11
 QT += network dbus
@@ -11,17 +11,27 @@ DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 INCLUDEPATH += $$PWD/third_party/sailfish-secrets
 LIBS += -l:libsailfishsecrets.so.0
 
+# Public headers of libtimed-qt5 3.6.24 (LGPL-2.1), for the same reason.
+# Scheduling reminders with timed is not allowed in Harbour; this is a
+# sideload-only feature.
+INCLUDEPATH += $$PWD/third_party/timed-qt5
+LIBS += -l:libtimed-qt5.so.0
+
 HEADERS += \
+    src/alarms.h \
     src/apiclient.h \
     src/appbridge.h \
+    src/attachmentimages.h \
     src/redact.h \
     src/securestore.h \
     src/textutil.h
 
 SOURCES += \
     src/main.cpp \
+    src/alarms.cpp \
     src/apiclient.cpp \
     src/appbridge.cpp \
+    src/attachmentimages.cpp \
     src/redact.cpp \
     src/securestore.cpp \
     src/textutil.cpp

@@ -2,36 +2,32 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 import "../js/util.js" as Util
 
-// Picks a date and then a time. `value` is a Date or null.
+// Shows a date and time; tapping opens one dialog for both. `dateValue` is a
+// Date or null.
 ValueButton {
     id: field
 
     property var dateValue: null
     property bool clearable: true
+    property var defaultDate: null
 
     value: dateValue ? Util.formatDate(field.dateValue) : qsTr("None")
 
-    function pickTime(date) {
-        var t = pageStack.push("Sailfish.Silica.TimePickerDialog", {
-            hourMode: DateTime.TwentyFourHours,
-            hour: field.dateValue ? field.dateValue.getHours() : 9,
-            minute: field.dateValue ? field.dateValue.getMinutes() : 0
+    function open() {
+        var start = field.dateValue
+        if (!start) {
+            start = field.defaultDate ? new Date(field.defaultDate.getTime()) : Util.addDays(Util.startOfDay(new Date()), 1)
+            if (!field.defaultDate)
+                start.setHours(9)
+        }
+        var d = pageStack.push(Qt.resolvedUrl("../pages/DateTimeDialog.qml"), {
+            selected: start, title: field.label, clearable: field.clearable && field.dateValue !== null
         })
-        t.accepted.connect(function() {
-            var d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), t.hour, t.minute, 0)
-            field.dateValue = d
-        })
-    }
-
-    onClicked: {
-        var dialog = pageStack.push("Sailfish.Silica.DatePickerDialog", {
-            date: field.dateValue ? field.dateValue : new Date()
-        })
-        dialog.accepted.connect(function() {
-            var picked = dialog.date
-            pickTime(picked)
+        d.accepted.connect(function() {
+            field.dateValue = d.cleared ? null : d.selected
         })
     }
 
+    onClicked: open()
     onPressAndHold: if (clearable) field.dateValue = null
 }

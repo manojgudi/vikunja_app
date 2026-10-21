@@ -5,6 +5,11 @@ import "../js/util.js" as Util
 
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property var task
     property var selected: ({})

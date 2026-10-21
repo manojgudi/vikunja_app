@@ -2,6 +2,7 @@
 #define APICLIENT_H
 
 #include <QByteArray>
+#include <QDateTime>
 #include <QJSValue>
 #include <QObject>
 #include <QPointer>
@@ -38,8 +39,11 @@ class ApiClient : public QObject
     Q_PROPERTY(bool insecureConnection READ insecureConnection NOTIFY sessionChanged)
     Q_PROPERTY(bool persistentLogin READ persistentLogin CONSTANT)
     Q_PROPERTY(int pendingRequests READ pendingRequests NOTIFY pendingRequestsChanged)
+    // Why the last restoreSession() failed: "" or "inactive".
+    Q_PROPERTY(QString sessionNotice READ sessionNotice NOTIFY sessionChanged)
 
 public:
+    void syncSettings() { m_settings.sync(); }
     struct Result {
         bool ok = false;
         int status = 0;
@@ -52,6 +56,10 @@ public:
         QVariantMap toMap() const;
     };
     typedef std::function<void(const Result &)> Callback;
+
+    // Signed-in sessions end after this many days without opening the app.
+    static const int InactivityDays = 30;
+    static const qint64 MaxUploadBytes = 20 * 1024 * 1024;
 
     static const int MinimumMajor = 0;
     static const int MinimumMinor = 24;
@@ -69,6 +77,7 @@ public:
     bool insecureConnection() const;
     bool persistentLogin() const;
     int pendingRequests() const { return m_pending; }
+    QString sessionNotice() const { return m_sessionNotice; }
 
     // QML API. Every callback receives one object:
     // { ok, status, data, error, errorCode, certificate, totalPages }
@@ -82,6 +91,11 @@ public:
                              const QVariant &body, const QJSValue &callback);
     Q_INVOKABLE void downloadAttachment(int taskId, int attachmentId, const QString &fileName,
                                         const QJSValue &callback);
+    // Loads an image attachment into memory; data is "image://attachment/<key>".
+    Q_INVOKABLE void previewAttachment(int taskId, int attachmentId, const QJSValue &callback);
+    Q_INVOKABLE void uploadAttachment(int taskId, const QString &filePath, const QJSValue &callback);
+    // Called while the user has the app open; keeps the session alive.
+    Q_INVOKABLE void touchSession();
 
     Q_INVOKABLE void trustCertificate(const QString &host, int port, const QString &sha256);
     Q_INVOKABLE QVariantList trustedCertificates();
@@ -102,6 +116,10 @@ public:
     void requestNative(const QString &method, const QString &path, const QVariantMap &query,
                        const QVariant &body, Callback cb);
     void downloadNative(int taskId, int attachmentId, const QString &fileName, const QString &directory, Callback cb);
+    void previewNative(int taskId, int attachmentId, Callback cb);
+    void uploadNative(int taskId, const QString &filePath, Callback cb);
+    // For tests: pretend the app was last used this long ago.
+    void setLastUsedForTest(const QDateTime &when);
 
     static bool versionAtLeast(const QString &version, int major, int minor);
 
@@ -112,7 +130,8 @@ signals:
 
 private:
     void send(const QByteArray &method, const QUrl &url, const QByteArray &body,
-              const QByteArray &token, Callback cb);
+              const QByteArray &token, Callback cb,
+              const QByteArray &contentType = QByteArray("application/json"), int timeoutMs = 0);
     void handleFinished(QNetworkReply *reply, Callback cb);
     bool urlAllowed(const QUrl &url, QString *reason) const;
     QUrl apiUrl(const QString &base, const QString &path, const QVariantMap &query = QVariantMap()) const;
@@ -130,6 +149,7 @@ private:
     QString m_authMethod;
     QString m_tokenExpires;
     QByteArray m_token;
+    QString m_sessionNotice;
     int m_pending = 0;
     int m_timeoutMs = 20000;
 };

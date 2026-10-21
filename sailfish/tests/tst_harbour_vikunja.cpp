@@ -7,7 +7,11 @@
 #include <QTimer>
 #include <QSettings>
 
+#include <QImage>
+#include <QMessageAuthenticationCode>
+
 #include "apiclient.h"
+#include "attachmentimages.h"
 #include "redact.h"
 #include "securestore.h"
 #include "textutil.h"
@@ -53,7 +57,35 @@ private:
 
     static QString qEnvironmentVariable(const char *name) { return QString::fromLocal8Bit(qgetenv(name)); }
 
+    // RFC 6238 code for a base32 secret, to test two-factor login.
+    static QString totp(const QString &base32)
+    {
+        QByteArray key;
+        int buffer = 0, bits = 0;
+        for (QChar c : base32.toUpper()) {
+            const int v = QStringLiteral("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567").indexOf(c);
+            if (v < 0)
+                continue;
+            buffer = (buffer << 5) | v;
+            bits += 5;
+            if (bits >= 8) {
+                key.append(char((buffer >> (bits - 8)) & 0xff));
+                bits -= 8;
+            }
+        }
+        quint64 counter = QDateTime::currentMSecsSinceEpoch() / 1000 / 30;
+        QByteArray msg(8, 0);
+        for (int i = 7; i >= 0; --i, counter >>= 8)
+            msg[i] = char(counter & 0xff);
+        const QByteArray h = QMessageAuthenticationCode::hash(msg, key, QCryptographicHash::Sha1);
+        const int o = h.at(h.size() - 1) & 0x0f;
+        const quint32 bin = ((quint32(uchar(h[o])) & 0x7f) << 24) | (quint32(uchar(h[o + 1])) << 16)
+                | (quint32(uchar(h[o + 2])) << 8) | quint32(uchar(h[o + 3]));
+        return QStringLiteral("%1").arg(bin % 1000000, 6, 10, QLatin1Char('0'));
+    }
+
     SecureStore m_store;
+    AttachmentImages *m_images = nullptr;
 
 private slots:
     void initTestCase()
@@ -63,6 +95,12 @@ private slots:
         QSettings().clear();
         qputenv("HARBOUR_VIKUNJA_MEMORY_STORE", "1");
         m_store.init();
+        m_images = new AttachmentImages;
+    }
+
+    void cleanupTestCase()
+    {
+        delete m_images;
     }
 
     // --- Unit tests -----------------------------------------------------------
@@ -368,6 +406,125 @@ private slots:
         api.logout();
         QVERIFY(!api.authenticated());
         QVERIFY(!api.restoreSession());
+    }
+
+    void sessionExpiresAfterInactivity()
+    {
+        requireServer();
+        ApiClient api(&m_store);
+        api.setSetting(QStringLiteral("layout/1"), QStringLiteral("list"));
+        api.setSetting(QStringLiteral("theme"), QStringLiteral("dark"));
+        ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+
+        // Used 29 days ago: still signed in.
+        {
+            ApiClient again(&m_store);
+            again.setLastUsedForTest(QDateTime::currentDateTimeUtc().addDays(-29));
+            QVERIFY(again.restoreSession());
+            again.touchSession(); // opening the app restarts the 30 days
+        }
+        {
+            ApiClient again(&m_store);
+            QVERIFY(again.restoreSession());
+            // 31 days without opening the app: signed out, token wiped.
+            again.setLastUsedForTest(QDateTime::currentDateTimeUtc().addDays(-31));
+        }
+        ApiClient later(&m_store);
+        QVERIFY(!later.restoreSession());
+        QCOMPARE(later.sessionNotice(), QStringLiteral("inactive"));
+        QVERIFY(!later.authenticated());
+        ApiClient after(&m_store);
+        QVERIFY(!after.restoreSession());
+        bool found = true;
+        m_store.read(QStringLiteral("api-token"), &found);
+        QVERIFY(!found);
+        // Account preferences are gone, the theme stays.
+        QVERIFY(!after.setting(QStringLiteral("layout/1")).isValid());
+        QCOMPARE(after.setting(QStringLiteral("theme")).toString(), QStringLiteral("dark"));
+    }
+
+    void attachmentUploadAndPreview()
+    {
+        requireServer();
+        ApiClient api(&m_store);
+        ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithTokenNative(url(), token(), cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+        QVariantMap project;
+        project.insert(QStringLiteral("title"), QStringLiteral("Attachment test"));
+        r = req(api, QStringLiteral("PUT"), QStringLiteral("/projects"), project);
+        QVERIFY2(r.ok, qPrintable(r.error));
+        const int projectId = r.data.toMap().value(QStringLiteral("id")).toInt();
+        QVariantMap task;
+        task.insert(QStringLiteral("title"), QStringLiteral("Has a photo"));
+        r = req(api, QStringLiteral("PUT"), QStringLiteral("/projects/%1/tasks").arg(projectId), task);
+        QVERIFY2(r.ok, qPrintable(r.error));
+        const int taskId = r.data.toMap().value(QStringLiteral("id")).toInt();
+
+        // A picture in the user's Pictures folder, as the picker returns it.
+        QDir pictures(QDir::homePath() + QStringLiteral("/Pictures"));
+        pictures.mkpath(QStringLiteral("."));
+        const QString photo = pictures.filePath(QStringLiteral("vikunja-test \"photo\".png"));
+        QImage img(64, 48, QImage::Format_RGB32);
+        img.fill(Qt::red);
+        QVERIFY(img.save(photo, "PNG"));
+        r = wait([&](ApiClient::Callback cb) { api.uploadNative(taskId, QStringLiteral("file://") + photo, cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+        QFile::remove(photo);
+
+        r = req(api, QStringLiteral("GET"), QStringLiteral("/tasks/%1").arg(taskId));
+        const QVariantList atts = r.data.toMap().value(QStringLiteral("attachments")).toList();
+        QCOMPARE(atts.size(), 1);
+        const QVariantMap att = atts.first().toMap();
+        QVERIFY(!att.value(QStringLiteral("file")).toMap().value(QStringLiteral("name")).toString().contains(QLatin1Char('"')));
+        const int attId = att.value(QStringLiteral("id")).toInt();
+
+        // Preview straight from memory.
+        r = wait([&](ApiClient::Callback cb) { api.previewNative(taskId, attId, cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+        const QString key = r.data.toString().mid(QStringLiteral("image://attachment/").size());
+        QSize size;
+        const QImage back = m_images->requestImage(key, &size, QSize());
+        QCOMPARE(back.size(), QSize(64, 48));
+
+        // Files outside the user's folders are refused.
+        r = wait([&](ApiClient::Callback cb) { api.uploadNative(taskId, QStringLiteral("/etc/passwd"), cb); });
+        QVERIFY(!r.ok);
+        r = wait([&](ApiClient::Callback cb) {
+            api.uploadNative(taskId, QSettings().fileName(), cb); // the app's own settings
+        });
+        QVERIFY(!r.ok);
+
+        r = req(api, QStringLiteral("DELETE"), QStringLiteral("/projects/%1").arg(projectId));
+        QVERIFY2(r.ok, qPrintable(r.error));
+        // Signing out drops the preview cache.
+        api.logout();
+        QVERIFY(m_images->requestImage(key, &size, QSize()).isNull());
+    }
+
+    void twoFactorLogin()
+    {
+        const QString user = qEnvironmentVariable("VIKUNJA_TEST_TOTP_USER");
+        const QString secret = qEnvironmentVariable("VIKUNJA_TEST_TOTP_SECRET");
+        if (url().isEmpty() || user.isEmpty() || secret.isEmpty())
+            QSKIP("VIKUNJA_TEST_TOTP_USER / VIKUNJA_TEST_TOTP_SECRET not set");
+        const QString pass = qEnvironmentVariable("VIKUNJA_TEST_TOTP_PASSWORD");
+        ApiClient api(&m_store);
+        // Step 1: username and password only. The server asks for the code.
+        ApiClient::Result r = wait([&](ApiClient::Callback cb) { api.loginWithPasswordNative(url(), user, pass, QString(), cb); });
+        QVERIFY(!r.ok);
+        QCOMPARE(r.errorCode, QStringLiteral("totp_required"));
+        QVERIFY(!api.authenticated());
+        // A wrong code is rejected.
+        r = wait([&](ApiClient::Callback cb) { api.loginWithPasswordNative(url(), user, pass, QStringLiteral("000000"), cb); });
+        QVERIFY(!r.ok);
+        QCOMPARE(r.errorCode, QStringLiteral("totp_invalid"));
+        // Step 2: the right code.
+        r = wait([&](ApiClient::Callback cb) { api.loginWithPasswordNative(url(), user, pass, totp(secret), cb); });
+        QVERIFY2(r.ok, qPrintable(r.error));
+        QVERIFY(api.authenticated());
+        QCOMPARE(api.authMethod(), QStringLiteral("password"));
+        api.logout();
     }
 
     void passwordLoginMintsScopedToken()

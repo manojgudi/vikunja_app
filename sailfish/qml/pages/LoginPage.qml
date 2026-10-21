@@ -1,25 +1,33 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 
+// Two steps, like the Vikunja Android app: server, username and password
+// first; the two-factor code is only asked for when the account needs it.
 Page {
     id: page
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
 
     property bool busy: false
-    property bool usePassword: methodBox.currentIndex === 1
     property bool needTotp: false
-    property string errorText: ""
+    property string errorText: api.sessionNotice === "inactive"
+                               ? qsTr("You were signed out because the app was not used for %1 days.").arg(30) : ""
 
     backNavigation: false
 
     function signIn() {
         errorText = ""
         busy = true
-        var done = function(r) {
+        api.loginWithPassword(serverField.text, userField.text, passwordField.text,
+                              needTotp ? totpField.text : "", function(r) {
             busy = false
             if (r.ok) {
                 passwordField.text = ""
-                tokenField.text = ""
                 totpField.text = ""
+                needTotp = false
                 app.currentUser = r.data
                 app.loadProjects()
                 app.loadLabels()
@@ -27,11 +35,14 @@ Page {
                 return
             }
             handleError(r)
-        }
-        if (usePassword)
-            api.loginWithPassword(serverField.text, userField.text, passwordField.text, totpField.text, done)
-        else
-            api.loginWithToken(serverField.text, tokenField.text, done)
+        })
+    }
+
+    function backToPassword() {
+        needTotp = false
+        totpField.text = ""
+        errorText = ""
+        passwordField.forceActiveFocus()
     }
 
     function handleError(r) {
@@ -52,8 +63,15 @@ Page {
             })
             return
         }
-        if (r.errorCode === "totp_required" || r.errorCode === "totp_invalid") {
+        if (r.errorCode === "totp_required") {
+            // Password was right; now the second step.
             needTotp = true
+            errorText = ""
+            totpField.forceActiveFocus()
+            return
+        }
+        if (r.errorCode === "totp_invalid") {
+            totpField.text = ""
             totpField.forceActiveFocus()
         }
         errorText = r.error
@@ -73,7 +91,7 @@ Page {
             width: parent.width
             spacing: Theme.paddingMedium
 
-            PageHeader { title: qsTr("Sign in to Vikunja") }
+            PageHeader { title: page.needTotp ? qsTr("Two-factor authentication") : qsTr("Sign in to Vikunja") }
 
             Image {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -83,108 +101,103 @@ Page {
                 fillMode: Image.PreserveAspectFit
             }
 
-            TextField {
-                id: serverField
+            // Step 1
+            Column {
                 width: parent.width
-                label: qsTr("Server address")
-                placeholderText: "https://vikunja.example.com"
-                text: api.serverUrl
-                inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-                EnterKey.iconSource: "image://theme/icon-m-enter-next"
-                EnterKey.onClicked: usePassword ? userField.forceActiveFocus() : tokenField.forceActiveFocus()
-            }
+                visible: !page.needTotp
 
-            ComboBox {
-                id: methodBox
-                width: parent.width
-                label: qsTr("Sign in with")
-                menu: ContextMenu {
-                    MenuItem { text: qsTr("API token") }
-                    MenuItem { text: qsTr("Username and password") }
+                TextField {
+                    id: serverField
+                    width: parent.width
+                    label: qsTr("Server address")
+                    placeholderText: "https://vikunja.example.com"
+                    text: api.serverUrl
+                    inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+                    EnterKey.iconSource: "image://theme/icon-m-enter-next"
+                    EnterKey.onClicked: userField.forceActiveFocus()
+                }
+
+                TextField {
+                    id: userField
+                    width: parent.width
+                    label: qsTr("Username or email")
+                    inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
+                    EnterKey.iconSource: "image://theme/icon-m-enter-next"
+                    EnterKey.onClicked: passwordField.forceActiveFocus()
+                }
+
+                PasswordField {
+                    id: passwordField
+                    width: parent.width
+                    EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                    EnterKey.onClicked: if (signInButton.enabled) page.signIn()
                 }
             }
 
-            PasswordField {
-                id: tokenField
-                visible: !usePassword
+            // Step 2
+            Column {
                 width: parent.width
-                label: qsTr("API token")
-                placeholderText: qsTr("tk_...")
-                inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText | Qt.ImhSensitiveData
-                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
-                EnterKey.onClicked: signIn()
+                visible: page.needTotp
+                spacing: Theme.paddingMedium
+
+                Label {
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * Theme.horizontalPageMargin
+                    wrapMode: Text.Wrap
+                    color: Theme.highlightColor
+                    text: qsTr("Enter the 6-digit code from your authenticator app for %1.").arg(userField.text)
+                }
+
+                TextField {
+                    id: totpField
+                    width: parent.width
+                    label: qsTr("Authentication code")
+                    inputMethodHints: Qt.ImhDigitsOnly | Qt.ImhNoPredictiveText
+                    validator: RegExpValidator { regExp: /^[0-9]{0,8}$/ }
+                    EnterKey.iconSource: "image://theme/icon-m-enter-accept"
+                    EnterKey.onClicked: if (signInButton.enabled) page.signIn()
+                }
             }
 
             Label {
-                visible: !usePassword
+                visible: page.errorText.length > 0
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
-                font.pixelSize: Theme.fontSizeExtraSmall
-                color: Theme.secondaryHighlightColor
-                text: qsTr("Create a token in the Vikunja web app under Settings → API Tokens. Give it access to projects, tasks, labels and comments.")
-            }
-
-            TextField {
-                id: userField
-                visible: usePassword
-                width: parent.width
-                label: qsTr("Username")
-                inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
-                EnterKey.iconSource: "image://theme/icon-m-enter-next"
-                EnterKey.onClicked: passwordField.forceActiveFocus()
-            }
-
-            PasswordField {
-                id: passwordField
-                visible: usePassword
-                width: parent.width
-                EnterKey.iconSource: needTotp ? "image://theme/icon-m-enter-next" : "image://theme/icon-m-enter-accept"
-                EnterKey.onClicked: needTotp ? totpField.forceActiveFocus() : signIn()
-            }
-
-            TextField {
-                id: totpField
-                visible: usePassword
-                width: parent.width
-                label: needTotp ? qsTr("Two-factor code (required)") : qsTr("Two-factor code (if enabled)")
-                inputMethodHints: Qt.ImhDigitsOnly
-                validator: RegExpValidator { regExp: /^[0-9]{0,8}$/ }
-                EnterKey.iconSource: "image://theme/icon-m-enter-accept"
-                EnterKey.onClicked: signIn()
-            }
-
-            Label {
-                visible: usePassword
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * Theme.horizontalPageMargin
-                wrapMode: Text.Wrap
-                font.pixelSize: Theme.fontSizeExtraSmall
-                color: Theme.secondaryHighlightColor
-                text: qsTr("Your password is used once to create a revocable API token for this phone, then forgotten. The token appears in Vikunja under Settings → API Tokens.")
-            }
-
-            Label {
-                visible: errorText.length > 0
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * Theme.horizontalPageMargin
-                wrapMode: Text.Wrap
-                color: "#ff4d4d"
-                text: errorText
+                color: Theme.errorColor
+                text: page.errorText
             }
 
             Button {
+                id: signInButton
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Sign in")
-                enabled: !busy && serverField.text.length > 0
-                         && (usePassword ? (userField.text.length > 0 && passwordField.text.length > 0) : tokenField.text.length > 0)
-                onClicked: signIn()
+                text: page.needTotp ? qsTr("Verify") : qsTr("Sign in")
+                enabled: !page.busy && serverField.text.length > 0 && userField.text.length > 0
+                         && passwordField.text.length > 0 && (!page.needTotp || totpField.text.length >= 6)
+                onClicked: page.signIn()
+            }
+
+            Button {
+                visible: page.needTotp
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Back")
+                enabled: !page.busy
+                onClicked: page.backToPassword()
             }
 
             BusyIndicator {
                 anchors.horizontalCenter: parent.horizontalCenter
-                running: busy
-                visible: busy
+                running: page.busy
+                visible: page.busy
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryHighlightColor
+                text: qsTr("Your password is only sent to your server. It is used once to create a revocable access token for this phone and then forgotten; the token appears in Vikunja under Settings → API Tokens. You stay signed in until you sign out or don't open the app for 30 days.")
             }
 
             Label {

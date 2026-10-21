@@ -1,5 +1,6 @@
 #include "apiclient.h"
 
+#include "attachmentimages.h"
 #include "redact.h"
 #include "securestore.h"
 #include "textutil.h"
@@ -166,7 +167,7 @@ QUrl ApiClient::apiUrl(const QString &base, const QString &path, const QVariantM
 }
 
 void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray &body,
-                     const QByteArray &token, Callback cb)
+                     const QByteArray &token, Callback cb, const QByteArray &contentType, int timeoutMs)
 {
     QString reason;
     if (!url.isValid() || url.host().isEmpty()) {
@@ -188,7 +189,7 @@ void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray
     req.setHeader(QNetworkRequest::UserAgentHeader, QByteArray(UserAgent));
     req.setRawHeader("Accept", "application/json");
     if (!body.isNull())
-        req.setHeader(QNetworkRequest::ContentTypeHeader, QByteArray("application/json"));
+        req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
     if (!token.isEmpty())
         req.setRawHeader("Authorization", QByteArray("Bearer ") + token);
     req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, false);
@@ -228,7 +229,7 @@ void ApiClient::send(const QByteArray &method, const QUrl &url, const QByteArray
         reply->setProperty("timedOut", true);
         reply->abort();
     });
-    timer->start(m_timeoutMs);
+    timer->start(timeoutMs > 0 ? timeoutMs : m_timeoutMs);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, cb]() {
         --m_pending;
@@ -352,7 +353,9 @@ void ApiClient::finishLogin(const QString &server, const QString &version, const
         m_settings.setValue(QStringLiteral("session/authMethod"), method);
         m_settings.setValue(QStringLiteral("session/tokenId"), tokenId);
         m_settings.setValue(QStringLiteral("session/tokenExpires"), expires);
+        m_settings.setValue(QStringLiteral("session/lastUsed"), QDateTime::currentDateTimeUtc());
         m_settings.sync();
+        m_sessionNotice.clear();
         if (m_store)
             m_store->write(QLatin1String(TokenSecret), token);
         emit sessionChanged();
@@ -402,14 +405,20 @@ void ApiClient::loginWithPasswordNative(const QString &url, const QString &usern
         const QByteArray body = QJsonDocument::fromVariant(login).toJson(QJsonDocument::Compact);
 
         send("POST", apiUrl(server, QStringLiteral("/login")), body, QByteArray(),
-             [this, server, version, cb](const Result &res) {
+             [this, server, version, totp, cb](const Result &res) {
             if (!res.ok) {
                 Result r = res;
                 const int code = res.data.toMap().value(QStringLiteral("code")).toInt();
-                if (code == 1017)
+                // The server uses 1017 both for "code needed" and "code wrong".
+                if ((code == 1017 || code == 1018) && totp.trimmed().isEmpty()) {
                     r.errorCode = QStringLiteral("totp_required");
-                else if (code == 1018)
+                    r.error = tr("Enter the code from your authenticator app.");
+                } else if (code == 1017 || code == 1018) {
                     r.errorCode = QStringLiteral("totp_invalid");
+                    r.error = tr("That code is not correct. Check your authenticator app and try again.");
+                } else if (r.status == 429) {
+                    r.error = tr("Too many sign-in attempts. Wait a minute and try again.");
+                }
                 cb(r);
                 return;
             }
@@ -471,9 +480,26 @@ bool ApiClient::restoreSession()
     if (server.isEmpty() || !m_store)
         return false;
     bool found = false;
-    const QByteArray token = m_store->read(QLatin1String(TokenSecret), &found);
+    QByteArray token = m_store->read(QLatin1String(TokenSecret), &found);
     if (!found || token.isEmpty())
         return false;
+
+    // A session ends after InactivityDays without the app being opened, or
+    // when the token itself expires. The token is then wiped from the phone.
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    QDateTime lastUsed = m_settings.value(QStringLiteral("session/lastUsed")).toDateTime();
+    if (!lastUsed.isValid() || lastUsed > now.addSecs(300)) {
+        lastUsed = now; // first start after an update, or clock went backwards
+        m_settings.setValue(QStringLiteral("session/lastUsed"), lastUsed);
+    }
+    const QDateTime expires = QDateTime::fromString(m_settings.value(QStringLiteral("session/tokenExpires")).toString(), Qt::ISODate);
+    if (lastUsed.daysTo(now) > InactivityDays || (expires.isValid() && expires <= now)) {
+        token.fill('\0');
+        logout();
+        m_sessionNotice = QStringLiteral("inactive");
+        emit sessionChanged();
+        return false;
+    }
     m_server = server;
     m_token = token;
     m_serverVersion = m_settings.value(QStringLiteral("session/version")).toString();
@@ -494,8 +520,36 @@ void ApiClient::logout()
     m_settings.remove(QStringLiteral("session/authMethod"));
     m_settings.remove(QStringLiteral("session/tokenId"));
     m_settings.remove(QStringLiteral("session/tokenExpires"));
+    m_settings.remove(QStringLiteral("session/lastUsed"));
+    // Per-account preferences go too; only the theme and the server address
+    // (to make signing in again easier) stay.
+    const QVariant theme = m_settings.value(QStringLiteral("prefs/theme"));
+    m_settings.remove(QStringLiteral("prefs"));
+    if (theme.isValid())
+        m_settings.setValue(QStringLiteral("prefs/theme"), theme);
     m_settings.sync();
+    m_sessionNotice.clear();
+    if (AttachmentImages::instance())
+        AttachmentImages::instance()->clear();
     emit sessionChanged();
+}
+
+void ApiClient::touchSession()
+{
+    if (m_token.isEmpty())
+        return;
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    const QDateTime last = m_settings.value(QStringLiteral("session/lastUsed")).toDateTime();
+    if (!last.isValid() || last.secsTo(now) > 3600 || last > now) {
+        m_settings.setValue(QStringLiteral("session/lastUsed"), now);
+        m_settings.sync();
+    }
+}
+
+void ApiClient::setLastUsedForTest(const QDateTime &when)
+{
+    m_settings.setValue(QStringLiteral("session/lastUsed"), when);
+    m_settings.sync();
 }
 
 // --- Generic requests ----------------------------------------------------------
@@ -580,7 +634,109 @@ void ApiClient::downloadAttachment(int taskId, int attachmentId, const QString &
     downloadNative(taskId, attachmentId, fileName, dir, [this, callback](const Result &r) { invoke(callback, r); });
 }
 
+void ApiClient::previewNative(int taskId, int attachmentId, Callback cb)
+{
+    const QString key = QStringLiteral("%1-%2").arg(taskId).arg(attachmentId);
+    if (AttachmentImages::instance() && AttachmentImages::instance()->contains(key)) {
+        Result r;
+        r.ok = true;
+        r.data = QStringLiteral("image://attachment/") + key;
+        QTimer::singleShot(0, this, [cb, r]() { cb(r); });
+        return;
+    }
+    requestNative(QStringLiteral("GET"),
+                  QStringLiteral("/tasks/%1/attachments/%2").arg(taskId).arg(attachmentId),
+                  QVariantMap(), QVariant(), [key, cb](const Result &res) {
+        Result r = res;
+        r.data = QVariant();
+        if (r.ok && (r.raw.size() > 15 * 1024 * 1024 || !AttachmentImages::instance())) {
+            r.ok = false;
+            r.errorCode = QStringLiteral("too_large");
+            r.error = tr("The image is too large to preview.");
+        }
+        if (r.ok) {
+            AttachmentImages::instance()->insert(key, r.raw);
+            r.data = QStringLiteral("image://attachment/") + key;
+        }
+        r.raw.fill('\0');
+        r.raw.clear();
+        cb(r);
+    });
+}
+
+void ApiClient::uploadNative(int taskId, const QString &filePath, Callback cb)
+{
+    auto fail = [this, cb](const QString &code, const QString &message) {
+        Result r;
+        r.errorCode = code;
+        r.error = message;
+        QTimer::singleShot(0, this, [cb, r]() { cb(r); });
+    };
+    if (m_token.isEmpty() || taskId <= 0)
+        return fail(QStringLiteral("not_authenticated"), tr("Not signed in."));
+    const QString local = filePath.startsWith(QLatin1String("file://")) ? QUrl(filePath).toLocalFile() : filePath;
+    const QFileInfo info(local);
+    // Only regular files from the user's own folders, never the app's
+    // private data or system files.
+    const QString home = QDir::homePath() + QLatin1Char('/');
+    const QString canonical = info.canonicalFilePath();
+    const QString privateData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString privateConfig = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    const QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (!info.isFile() || canonical.isEmpty()
+            || !(canonical.startsWith(home) || canonical.startsWith(QLatin1String("/run/media/")))
+            || canonical.startsWith(privateData) || canonical.startsWith(privateConfig) || canonical.startsWith(cache)
+            || canonical.contains(QLatin1String("/."))) {
+        return fail(QStringLiteral("io"), tr("This file cannot be attached."));
+    }
+    if (info.size() > MaxUploadBytes)
+        return fail(QStringLiteral("too_large"), tr("Files up to %1 MB can be attached.").arg(MaxUploadBytes / (1024 * 1024)));
+    QFile f(canonical);
+    if (!f.open(QIODevice::ReadOnly))
+        return fail(QStringLiteral("io"), tr("Could not read the file."));
+    const QByteArray content = f.readAll();
+    f.close();
+
+    // Hand-built multipart body: Qt 5.6 sendCustomRequest() takes a QIODevice.
+    const QByteArray boundary = "----harbourvikunja" + QCryptographicHash::hash(content.left(4096) + QDateTime::currentDateTimeUtc().toString().toUtf8(),
+                                                                               QCryptographicHash::Sha1).toHex();
+    QString name = TextUtil::safeFileName(info.fileName());
+    name.replace(QLatin1Char('"'), QLatin1Char('_'));
+    QByteArray body;
+    body += "--" + boundary + "\r\n";
+    body += "Content-Disposition: form-data; name=\"files\"; filename=\"" + name.toUtf8() + "\"\r\n";
+    body += "Content-Type: application/octet-stream\r\n\r\n";
+    body += content;
+    body += "\r\n--" + boundary + "--\r\n";
+
+    send("PUT", apiUrl(m_server, QStringLiteral("/tasks/%1/attachments").arg(taskId)), body, m_token,
+         [this, cb](const Result &res) {
+        Result r = res;
+        if (r.status == 401 && !m_token.isEmpty())
+            emit sessionExpired();
+        // Vikunja answers 200 with per-file errors.
+        const QVariantList errors = r.data.toMap().value(QStringLiteral("errors")).toList();
+        if (r.ok && !errors.isEmpty()) {
+            r.ok = false;
+            r.errorCode = QStringLiteral("http");
+            const QString msg = errors.first().toMap().value(QStringLiteral("message")).toString();
+            r.error = msg.isEmpty() ? tr("The server rejected the file.") : msg;
+        }
+        cb(r);
+    }, QByteArray("multipart/form-data; boundary=") + boundary, 180000);
+}
+
 // --- QML wrappers ------------------------------------------------------------
+
+void ApiClient::previewAttachment(int taskId, int attachmentId, const QJSValue &callback)
+{
+    previewNative(taskId, attachmentId, [this, callback](const Result &r) { invoke(callback, r); });
+}
+
+void ApiClient::uploadAttachment(int taskId, const QString &filePath, const QJSValue &callback)
+{
+    uploadNative(taskId, filePath, [this, callback](const Result &r) { invoke(callback, r); });
+}
 
 void ApiClient::checkServer(const QString &url, const QJSValue &callback)
 {

@@ -4,6 +4,11 @@ import "../components"
 
 Dialog {
     id: dialog
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
     property string colorHex: "1973ff"
     signal created(var label)
 

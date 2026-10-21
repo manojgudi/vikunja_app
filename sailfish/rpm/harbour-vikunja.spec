@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.1.0
+Version:    0.2.0
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -42,6 +42,12 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.0-1
+- Reminders are scheduled with timed and arrive while the app is closed.
+- Projects open as a kanban board; the list is one pull-down away.
+- One date and time dialog; due-date presets stay editable.
+- Light, dark or ambience theme.
+
 * Tue Oct 20 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.1.0-1
 - First Sailfish OS release: projects, tasks, kanban, labels, comments,
   attachments, reminders, cover; Sailfish Secrets token storage, TLS pinning.

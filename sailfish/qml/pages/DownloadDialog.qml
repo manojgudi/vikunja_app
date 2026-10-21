@@ -3,6 +3,11 @@ import Sailfish.Silica 1.0
 
 // Attachments leave the app's sandbox when saved, so ask first.
 Dialog {
+    // Light/dark choice from the settings page.
+    palette.colorScheme: app.colorScheme
+    palette.highlightColor: app.highlightColor
+    palette.secondaryHighlightColor: app.secondaryHighlightColor
+    backgroundColor: app.pageBackground
     property string fileName
     property int fileSize: 0
     property alias openAfter: openSwitch.checked

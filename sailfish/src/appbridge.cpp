@@ -113,6 +113,21 @@ void AppBridge::openTask(int taskId)
         emit activateRequested();
 }
 
+static int taskIdFrom(double value)
+{
+    return value >= 1 && value <= 2147483647.0 && value == double(int(value)) ? int(value) : 0;
+}
+
+void AppBridge::openTask(double taskId)
+{
+    openTask(taskIdFrom(taskId));
+}
+
+void AppBridge::markDone(double taskId)
+{
+    markDone(taskIdFrom(taskId));
+}
+
 void AppBridge::reminderDue(const QString &kind, int taskId, qlonglong time)
 {
     // Anyone on the session bus could call this, so the arguments are only a

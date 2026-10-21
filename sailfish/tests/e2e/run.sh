@@ -56,6 +56,29 @@ sleep 50
 echo "--- app process after the reminder (should have exited by itself):"
 pgrep -af "[a]rgv0 /usr/bin/harbour-vikunja" | cut -c1-60 || echo "  none"
 pkill -f "[a]rgv0 /usr/bin/harbour-vikunja"
+echo "== tapping the reminder like lipstick does (app is not running)"
+# lipstick sends the action's arguments exactly as the app stored them: a
+# QDataStream of QVariants after the method name, base64-encoded.
+ACTION=$(grep -A1 '"x-nemo-remote-action-default"' $D/sesmon.log | tail -1 | sed 's/.*string "//; s/"$//')
+echo "  action: $ACTION"
+set -- $ACTION
+ARGS=""
+HEX=$(echo "$5" | base64 -d | od -An -tx1 -v | tr -d ' \n')
+while [ -n "$HEX" ]; do
+  TYPE=$((16#${HEX:0:8})); HEX=${HEX:10}
+  case $TYPE in
+    2) ARGS="$ARGS int32:$((16#${HEX:0:8}))"; HEX=${HEX:8} ;;
+    6) ARGS="$ARGS double:$(python3 -c "import struct;print(struct.unpack('>d',bytes.fromhex('${HEX:0:16}'))[0])" 2>/dev/null || echo 0)"; HEX=${HEX:16} ;;
+    *) echo "  unknown variant type $TYPE"; HEX="" ;;
+  esac
+done
+echo "  call: $4$ARGS"
+$SB dbus-send --session --print-reply --dest=$1 $2 $3.$4 $ARGS 2>&1 | head -3
+sleep 8
+echo "--- app process after the tap (should be showing its window):"
+pgrep -af "[a]rgv0 /usr/bin/harbour-vikunja" | cut -c1-60 || echo "  none"
+pkill -f "[a]rgv0 /usr/bin/harbour-vikunja"
+echo "--- session log"; tail -25 ~/.cache/io.github.manojgudi/harbour-vikunja/session.log
 echo "== $(date -Is)"
 echo "--- notification server log"; cat $D/notify.log
 echo "--- app log"; cat $D/app.log

@@ -40,6 +40,11 @@ public slots:
     Q_SCRIPTABLE void activate();
     Q_SCRIPTABLE void openTask(int taskId);
     Q_SCRIPTABLE void markDone(int taskId);
+    // Notification actions store their arguments as QML numbers, which
+    // lipstick sends as doubles (signature "d"); without these the call is
+    // refused as an unknown method and the tapped reminder opens nothing.
+    Q_SCRIPTABLE void openTask(double taskId);
+    Q_SCRIPTABLE void markDone(double taskId);
     // Called (through dbus-send) by a timed event.
     Q_SCRIPTABLE void reminderDue(const QString &kind, int taskId, qlonglong time);
 

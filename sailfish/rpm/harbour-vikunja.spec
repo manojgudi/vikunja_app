@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.8
+Version:    0.2.9
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -43,6 +43,11 @@ desktop-file-install --delete-original \
 %{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.9-1
+- Tapping a reminder opens the task again (and "Mark done" works): lipstick
+  sends the task id as a double, which the app refused as an unknown method,
+  so the app started hidden and never showed a window.
+
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.8-1
 - Diagnostics for opening a task from a reminder: the session log now
   records the D-Bus name, each incoming call, window changes, how the app

@@ -11,5 +11,5 @@ Comment=Tasks and kanban boards for your Vikunja server
 [X-Sailjail]
 OrganizationName=io.github.manojgudi
 ApplicationName=harbour-vikunja
-Permissions=Internet;Notifications;Secrets;Downloads;Pictures;Documents;Videos;Music;MediaIndexing
+Permissions=Internet;Notifications;Secrets;Downloads;Pictures;Documents
 ExecDBus=/usr/bin/harbour-vikunja -prestart

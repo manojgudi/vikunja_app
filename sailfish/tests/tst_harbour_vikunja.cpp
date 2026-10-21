@@ -696,6 +696,24 @@ private slots:
             api.uploadNative(taskId, QSettings(AppSettings::path(), QSettings::IniFormat).fileName(), cb); // the app's own settings
         });
         QVERIFY(!r.ok);
+        // Only Pictures, Documents and Downloads: not the rest of home, and
+        // not Music or Videos, which the sandbox no longer grants.
+        for (const QString &folder : { QStringLiteral("/Music"), QStringLiteral("/Videos"), QString() }) {
+            QDir dir(QDir::homePath() + folder);
+            dir.mkpath(QStringLiteral("."));
+            const QString file = dir.filePath(QStringLiteral("vikunja-test-refused.png"));
+            QVERIFY(img.save(file, "PNG"));
+            r = wait([&](ApiClient::Callback cb) { api.uploadNative(taskId, file, cb); });
+            QFile::remove(file);
+            QVERIFY2(!r.ok, qPrintable(folder));
+        }
+        QDir docs(QDir::homePath() + QStringLiteral("/Documents"));
+        docs.mkpath(QStringLiteral("."));
+        const QString doc = docs.filePath(QStringLiteral("vikunja-test.png"));
+        QVERIFY(img.save(doc, "PNG"));
+        r = wait([&](ApiClient::Callback cb) { api.uploadNative(taskId, doc, cb); });
+        QFile::remove(doc);
+        QVERIFY2(r.ok, qPrintable(r.error));
 
         r = req(api, QStringLiteral("DELETE"), QStringLiteral("/projects/%1").arg(projectId));
         QVERIFY2(r.ok, qPrintable(r.error));

@@ -82,6 +82,7 @@ int main(int argc, char **argv)
     engine.rootContext()->setContextProperty(QStringLiteral("smokeQmlDir"), qmlDir);
     engine.rootContext()->setContextProperty(QStringLiteral("smokeUser"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_USER")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokePassword"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_PASSWORD")));
+    engine.rootContext()->setContextProperty(QStringLiteral("homeDir"), QDir::homePath());
     engine.rootContext()->setContextProperty(QStringLiteral("shotDir"), QString::fromLocal8Bit(qgetenv("SMOKE_SHOT_DIR")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokePhase"), QString::fromLocal8Bit(qgetenv("SMOKE_PHASE")));
 

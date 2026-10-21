@@ -103,8 +103,12 @@ Page {
 
     Component {
         id: pickerComponent
-        ContentPickerPage {
+        // A plain folder browser: the sandbox only shows Pictures, Documents
+        // and Downloads, and unlike the content picker it needs no access to
+        // the phone-wide media index.
+        FilePickerPage {
             title: qsTr("Attach a file")
+            showSystemFiles: false
             onSelectedContentPropertiesChanged: {
                 if (selectedContentProperties && selectedContentProperties.filePath)
                     page.upload(selectedContentProperties.filePath)

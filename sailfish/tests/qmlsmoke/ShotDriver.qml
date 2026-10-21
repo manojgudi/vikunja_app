@@ -44,6 +44,31 @@ QtObject {
             timer.start()
             return
         }
+        if (name === "pick") {
+            win.pageStack.currentPage.pickFile()
+            timer.start()
+            return
+        }
+        if (name === "home") {
+            // Tap "Home folder" on the file picker's first page.
+            var list = findWith(win.pageStack.currentPage, "selected")
+            list.selected({ name: "Home", path: homeDir })
+            timer.start()
+            return
+        }
+        if (name.indexOf("pickfile:") === 0) {
+            // What the directory page sends when a file is tapped.
+            win.pageStack.currentPage.filePicked({ filePath: homeDir + "/" + name.substring(9), fileName: name.substring(9),
+                                                   url: "file://" + homeDir + "/" + name.substring(9), mimeType: "image/png" })
+            timer.start()
+            return
+        }
+        if (name === "attachments") {
+            var p = win.pageStack.currentPage
+            log("page " + String(p).split("_QML")[0] + " attachments: " + (p.task && p.task.attachments ? p.task.attachments.length : 0))
+            timer.start()
+            return
+        }
         if (name === "add") {
             win.openAddTask()
             timer.start()
@@ -61,6 +86,17 @@ QtObject {
         }
         win.pageStack.push(Qt.resolvedUrl(smokeQmlDir + "/pages/" + name + ".qml"), {}, 1)
         timer.start()
+    }
+
+    function findWith(item, prop) {
+        if (!item) return null
+        for (var i = 0; i < item.children.length; ++i) {
+            var c = item.children[i]
+            if (c[prop] !== undefined) return c
+            var f = findWith(c, prop)
+            if (f) return f
+        }
+        return null
     }
 
     function findFlickable(item) {

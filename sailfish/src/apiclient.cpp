@@ -741,16 +741,18 @@ void ApiClient::uploadNative(int taskId, const QString &filePath, Callback cb)
         return fail(QStringLiteral("not_authenticated"), tr("Not signed in."));
     const QString local = filePath.startsWith(QLatin1String("file://")) ? QUrl(filePath).toLocalFile() : filePath;
     const QFileInfo info(local);
-    // Only regular files from the user's own folders, never the app's
-    // private data or system files.
-    const QString home = QDir::homePath() + QLatin1Char('/');
+    // Only regular, non-hidden files from the folders the sandbox lets the
+    // app read (Pictures, Documents, Downloads), never private or system files.
     const QString canonical = info.canonicalFilePath();
-    const QString privateData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    const QString privateConfig = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    const QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    if (!info.isFile() || canonical.isEmpty()
-            || !(canonical.startsWith(home) || canonical.startsWith(QLatin1String("/run/media/")))
-            || canonical.startsWith(privateData) || canonical.startsWith(privateConfig) || canonical.startsWith(cache)
+    bool inAllowedFolder = false;
+    for (QStandardPaths::StandardLocation location : { QStandardPaths::PicturesLocation,
+                                                       QStandardPaths::DocumentsLocation,
+                                                       QStandardPaths::DownloadLocation }) {
+        const QString root = QFileInfo(QStandardPaths::writableLocation(location)).canonicalFilePath();
+        if (!root.isEmpty() && canonical.startsWith(root + QLatin1Char('/')))
+            inAllowedFolder = true;
+    }
+    if (!info.isFile() || canonical.isEmpty() || !inAllowedFolder
             || canonical.contains(QLatin1String("/."))) {
         return fail(QStringLiteral("io"), tr("This file cannot be attached."));
     }

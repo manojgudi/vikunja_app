@@ -1,6 +1,6 @@
 # Vikunja for Sailfish OS (beta)
 
-> **Status: beta (0.11).** This app is still under development. Expect rough
+> **Status: beta (0.11.1).** This app is still under development. Expect rough
 > edges and bugs, and keep your important data backed up on your Vikunja
 > server. It is provided "as is", without warranty of any kind (see the MIT
 > licence in this repository): **the authors are not responsible for any
@@ -36,7 +36,7 @@ Bug reports and pull requests are welcome.
    `armv7hl` for older 32-bit devices, `i486` for the SDK emulator. Not sure?
    Run `uname -m` in the terminal.
 3. Tap the file in the file manager, or in the terminal:
-   `devel-su pkcon install-local harbour-vikunja-0.11.0-1.aarch64.rpm`
+   `devel-su pkcon install-local harbour-vikunja-0.11.1-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
 
@@ -82,6 +82,27 @@ reminder without details is shown.
 This uses libtimed and D-Bus activation, which the Jolla Store does not
 allow, so it is part of the sideload/OpenRepos build only.
 
+## Permissions
+
+The app runs in the sailjail sandbox, which only lets it reach what the
+desktop file declares. It asks for six permissions (`Permissions=` in
+`harbour-vikunja.desktop`):
+
+| Permission | What it is used for | Without it |
+|---|---|---|
+| `Internet` | Talking to your Vikunja server. Nothing else is contacted: no analytics, no crash reporting. | The app cannot work. |
+| `Notifications` | Showing reminder and due-date notifications, with their "Open" and "Mark done" actions. | No reminders. |
+| `Secrets` | Keeping your access token encrypted in Sailfish Secrets. | You would have to sign in at every start (or keep the token in an unencrypted file). |
+| `Downloads` | Saving an attachment when you tap "Save", and attaching files from Downloads. | Attachments could only be viewed, not saved. |
+| `Pictures` | Attaching photos (including the camera folder) to a task. Read only when you pick a file. | No photo attachments. |
+| `Documents` | Attaching documents (PDFs and similar) to a task. Read only when you pick a file. | No document attachments. |
+
+Not requested: `Videos`, `Music` and `MediaIndexing` (dropped in 0.11.1; the
+file picker is a plain folder browser, so the app never sees the phone-wide
+media index), contacts, location, camera, microphone, phone or messaging
+access. Reminders with the app closed use timed and D-Bus activation, which
+need no sailjail permission.
+
 ## Security model
 
 | Data | Where it lives | Protection |
@@ -93,7 +114,7 @@ allow, so it is part of the sideload/OpenRepos build only.
 | Scheduled reminders | timed's event store | Task id, kind and time only, no titles. Cancelled on sign-out. |
 | Server URL, preferences, pinned certificate fingerprints, last-used time | `~/.config/io.github.manojgudi/harbour-vikunja/settings.conf` (inside the folder sailjail keeps; the QSettings default next to it would be lost on every exit) | Private to the app under sailjail; created with mode 0600 (`umask 077`). Not secret. Preferences reset on sign-out. |
 | Downloaded attachments | `~/Downloads`, only when you choose "Save" | The dialog tells you the file becomes readable by other apps. File names from the server are sanitised (no path traversal). |
-| Uploads | Read from your Pictures/Documents/Videos/Music/Downloads | Only regular files in your own folders; the app's private data, hidden files and system files are refused. Max 20 MB. |
+| Uploads | Read from your Pictures, Documents or Downloads folder, only the file you pick | Only regular, non-hidden files inside those three folders; anything else (the app's private data, other folders, system files) is refused. Max 20 MB. |
 
 Network:
 
@@ -113,9 +134,8 @@ Other:
 * Uninstalling does not delete Secrets entries or the private folders
   (Sailfish keeps user data on uninstall). Sign out first to remove
   everything.
-* The app runs in the sailjail sandbox with `Internet`, `Notifications`,
-  `Secrets`, `Downloads`, plus `Pictures`, `Documents`, `Videos`, `Music` and
-  `MediaIndexing` so you can pick files to attach.
+* The app runs in the sailjail sandbox with only the permissions listed
+  under [Permissions](#permissions).
 * The QML engine has no network access, so task descriptions and comments can
   never load remote images or trackers; their HTML is also sanitised.
 * Log output is passed through a redaction filter (bearer tokens, `tk_…` API

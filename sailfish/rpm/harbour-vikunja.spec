@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS (beta)
-Version:    0.11.0
+Version:    0.11.1
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -47,6 +47,12 @@ desktop-file-install --delete-original \
 %{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.11.1-1
+- Six permissions instead of nine: Videos, Music and MediaIndexing are gone.
+  Attaching uses a plain folder picker for Pictures, Documents and
+  Downloads, and uploads from any other folder are refused.
+- README: what each permission is used for.
+
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.11.0-1
 - First public beta.
 - Tidier pages: shorter texts in Settings, sign-in and dialogs; buttons in

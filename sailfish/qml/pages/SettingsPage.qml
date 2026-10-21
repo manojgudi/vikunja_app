@@ -50,8 +50,10 @@ Page {
             DetailItem { label: qsTr("Server"); value: api.serverUrl }
             DetailItem { label: qsTr("Server version"); value: api.serverVersion || "-" }
             DetailItem {
+                // Password sign-in is the only way in now; older sessions may still use a pasted token.
+                visible: api.authMethod !== "password"
                 label: qsTr("Signed in with")
-                value: api.authMethod === "password" ? qsTr("Password (app-created API token)") : qsTr("API token")
+                value: qsTr("API token")
             }
             DetailItem {
                 visible: api.tokenExpires.length > 0
@@ -59,15 +61,15 @@ Page {
                 value: Util.formatDate(Util.parseDate(api.tokenExpires))
             }
             DetailItem {
-                label: qsTr("Credential storage")
-                value: api.tokenStorage === "secrets" ? qsTr("Sailfish Secrets (encrypted)")
-                     : api.tokenStorage === "file" ? qsTr("App-private folder") : qsTr("Memory only")
+                label: qsTr("Token stored")
+                value: api.tokenStorage === "secrets" ? qsTr("Encrypted")
+                     : api.tokenStorage === "file" ? qsTr("Private file") : qsTr("Memory only")
             }
             TextSwitch {
                 // Only offered when Secrets is not doing its job.
                 visible: !api.secretsWorking && api.persistentLogin
-                text: qsTr("Keep me signed in without Secrets")
-                description: qsTr("Keeps the token in an unencrypted file in the app's private folder. Other sandboxed apps cannot read it; apps without the sandbox or root can.")
+                text: qsTr("Store the token in a file")
+                description: qsTr("Unencrypted file that only this app can read")
                 checked: api.fileFallback === "allowed"
                 automaticCheck: false
                 onClicked: api.setFileFallback(!checked)
@@ -82,7 +84,7 @@ Page {
                 id: defaultProjectBox
                 width: parent.width
                 label: qsTr("Default project")
-                description: qsTr("Used for new tasks from the home page and the cover")
+                description: qsTr("For new tasks from home and the cover")
                 menu: ContextMenu {
                     Repeater {
                         model: page.projectChoices
@@ -105,8 +107,8 @@ Page {
             TextSwitch {
                 text: qsTr("Reminders and due dates")
                 description: app.reminders.systemAlarms
-                             ? qsTr("Scheduled with the system alarm service, so they arrive even when the app is closed. Tasks added on other devices are picked up every few hours or when you open the app.")
-                             : qsTr("The system alarm service is not available, so reminders only arrive while the app is running.")
+                             ? qsTr("Arrive even when the app is closed")
+                             : qsTr("Only while the app is running")
                 checked: page.boolSetting("notifications", true)
                 onCheckedChanged: {
                     api.setSetting("notifications", checked)
@@ -117,7 +119,7 @@ Page {
             }
             TextSwitch {
                 text: qsTr("Hide task details")
-                description: qsTr("Notifications and the cover show no task titles")
+                description: qsTr("No task titles in notifications or on the cover")
                 checked: app.hideDetails
                 onCheckedChanged: {
                     api.setSetting("hideDetails", checked)
@@ -132,30 +134,30 @@ Page {
                 color: Theme.secondaryHighlightColor
                 font.pixelSize: Theme.fontSizeExtraSmall
                 text: app.reminders.lastSync.length > 0
-                      ? qsTr("%n upcoming reminder(s) scheduled, last synced at %1", "", app.reminders.scheduled).arg(app.reminders.lastSync)
+                      ? qsTr("%n scheduled, synced %1", "", app.reminders.scheduled).arg(app.reminders.lastSync)
                       : qsTr("Not synced yet")
             }
-            Button {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Send test notification")
-                onClicked: app.reminders.sendTest(false)
-            }
-            Button {
-                visible: app.reminders.systemAlarms
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Test reminder in 1 minute")
+            Item { width: 1; height: Theme.paddingMedium }
+            ButtonLayout {
+                Button {
+                    text: qsTr("Test now")
+                    onClicked: app.reminders.sendTest(false)
+                }
+                Button {
+                    visible: app.reminders.systemAlarms
+                    text: qsTr("Test in 1 min")
                 onClicked: {
                     if (alarms.scheduleTest(60))
                         app.notify(qsTr("Close the app now; the reminder arrives in a minute."))
                     else
                         app.notify(qsTr("Could not schedule the test reminder"))
+                    }
                 }
             }
 
             SectionHeader { text: qsTr("Appearance") }
             ComboBox {
                 label: qsTr("Theme")
-                description: qsTr("Remembered on this device")
                 currentIndex: app.themeMode === "light" ? 1 : app.themeMode === "dark" ? 2 : 0
                 menu: ContextMenu {
                     MenuItem { text: qsTr("Follow ambience") }
@@ -173,7 +175,7 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("None. Certificates you trust for self-signed servers appear here.")
+                text: qsTr("None yet")
             }
             Repeater {
                 model: page.pins
@@ -226,33 +228,34 @@ Page {
             }
 
             SectionHeader { text: qsTr("About") }
-            DetailItem { label: qsTr("Version"); value: appVersion }
+            DetailItem { label: qsTr("Version"); value: qsTr("%1 (beta)").arg(appVersion) }
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Tasks are kept in memory only and never cached on the phone. The app runs inside the Sailfish sandbox, and its token is stored in Sailfish Secrets. Only if Secrets refuses it and you allow it is the token kept in a file in the app's private folder.")
+                text: qsTr("Tasks are never stored on the phone. The app runs sandboxed and keeps its token encrypted. This is beta software, provided without warranty.")
             }
 
             Item { width: 1; height: Theme.paddingLarge }
-
-            Button {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Sign out")
-                onClicked: Remorse.popupAction(page, qsTr("Signing out"), function() {
-                    api.logout()
-                    app.signedOut()
-                })
+            ButtonLayout {
+                Button {
+                    text: qsTr("Sign out")
+                    onClicked: Remorse.popupAction(page, qsTr("Signing out"), function() {
+                        api.logout()
+                        app.signedOut()
+                    })
+                }
             }
+            Item { width: 1; height: Theme.paddingMedium }
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Signing out deletes the access token from this phone, cancels scheduled reminders, removes shown notifications and image previews, and resets your preferences here (except the theme). The token cannot revoke itself, so to invalidate it on the server too, delete it in the Vikunja web app under Settings → API Tokens. Files you saved to Downloads stay there.")
+                text: qsTr("Clears the token, reminders and previews from this phone. To revoke the token on the server, delete it in Vikunja under Settings → API Tokens.")
             }
         }
         VerticalScrollDecorator {}

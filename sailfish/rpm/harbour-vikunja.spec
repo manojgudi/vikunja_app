@@ -1,11 +1,15 @@
 Name:       harbour-vikunja
-Summary:    Vikunja client for Sailfish OS
-Version:    0.2.10
+Summary:    Vikunja client for Sailfish OS (beta)
+Version:    0.11.0
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfishsilica-qt5 >= 0.10.9
+# Built against the 5.x SDK: needs glibc 2.34+ (also required automatically
+# through libc.so.6(GLIBC_2.34)) and sailjail; Sailfish OS 4.x has neither in
+# the needed form, so give a clear error there instead of a broken install.
+Requires:   sailfish-version >= 5.0.0
 Requires:   nemo-qml-plugin-notifications-qt5
 BuildRequires:  pkgconfig(sailfishapp) >= 1.0.2
 BuildRequires:  pkgconfig(Qt5Core)
@@ -43,6 +47,13 @@ desktop-file-install --delete-original \
 %{_datadir}/lipstick/notificationcategories/x-harbour-vikunja.reminder.conf
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.11.0-1
+- First public beta.
+- Tidier pages: shorter texts in Settings, sign-in and dialogs; buttons in
+  Settings and on the sign-in page line up (ButtonLayout); quick due-date
+  presets in a two-column grid.
+- Refuses to install on Sailfish OS older than 5.0.
+
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.10-1
 - A task opened from a reminder sits on top of the home page: before, it
   was pushed onto the start page while that was still loading, so Back

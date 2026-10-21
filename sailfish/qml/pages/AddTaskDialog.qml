@@ -105,22 +105,24 @@ Dialog {
                 label: qsTr("Due")
             }
 
-            Flow {
+            Grid {
+                id: presetGrid
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
+                columns: 2
                 spacing: Theme.paddingMedium
                 Repeater {
                     model: [
                         { kind: "", name: qsTr("None") },
                         { kind: "today", name: qsTr("Today") },
                         { kind: "tomorrow", name: qsTr("Tomorrow") },
-                        { kind: "monday", name: qsTr("Next Monday") },
+                        { kind: "monday", name: qsTr("Monday") },
                         { kind: "weekend", name: qsTr("Weekend") },
                         { kind: "week", name: qsTr("In a week") }
                     ]
                     Button {
                         text: modelData.name
-                        preferredWidth: Theme.buttonWidthExtraSmall
+                        width: (presetGrid.width - presetGrid.spacing) / 2
                         onClicked: dialog.preset(modelData.kind)
                     }
                 }
@@ -132,7 +134,7 @@ Dialog {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Tap the due date to change the day or time.")
+                text: qsTr("Tap the due date to pick a day and time.")
             }
 
             Label {

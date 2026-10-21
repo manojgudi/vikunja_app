@@ -28,7 +28,7 @@ Dialog {
             x: Theme.horizontalPageMargin
             width: parent.width - 2 * Theme.horizontalPageMargin
             wrapMode: Text.Wrap
-            text: qsTr("%1 uses plain HTTP. Your token, password and every task would travel unencrypted, so anyone on the same network could read or change them.\n\nOnly allow this for a server on a network you fully trust. Using HTTPS is strongly recommended; a self-signed certificate works too.").arg(host)
+            text: qsTr("%1 uses plain HTTP: your password, token and tasks travel unencrypted, so others on the network could read or change them.\n\nOnly allow this on a network you trust. HTTPS (even self-signed) is much safer.").arg(host)
         }
     }
 }

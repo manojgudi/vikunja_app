@@ -34,7 +34,7 @@ Dialog {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
-                text: qsTr("The certificate of %1 could not be verified. If you run this server with a self-signed certificate, compare the fingerprint below with the one on your server before trusting it. Only this exact certificate will be accepted for this server.").arg(certificate.host)
+                text: qsTr("The certificate of %1 couldn't be verified. If your server uses a self-signed certificate, check that this fingerprint matches before trusting it. Only this exact certificate will be accepted.").arg(certificate.host)
             }
 
             DetailItem { label: qsTr("Subject"); value: certificate.subject || "-" }

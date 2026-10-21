@@ -1,18 +1,47 @@
-# Vikunja for Sailfish OS
+# Vikunja for Sailfish OS (beta)
 
-A native Sailfish OS (Qt 5.6 / QML / Silica) port of the Vikunja mobile app.
-It talks to your own Vikunja server (0.24 or newer) over its REST API.
+> **Status: beta (0.11).** This app is still under development. Expect rough
+> edges and bugs, and keep your important data backed up on your Vikunja
+> server. It is provided "as is", without warranty of any kind (see the MIT
+> licence in this repository): **the authors are not responsible for any
+> data loss, missed reminders or other damage** from using it.
 
-## Install (sideload)
+A native Sailfish OS (Qt 5.6 / QML / Silica) client for
+[Vikunja](https://vikunja.io), the open-source, self-hostable to-do app. It
+talks to your own Vikunja server over its REST API. Kanban boards, lists,
+reminders that fire with the app closed, attachments and two-factor sign-in
+are all supported; see the table below.
+
+**How it was made:** the code, tests and documentation were written by
+Claude, Anthropic's AI model, using Claude Code, with
+[@manojgudi](https://github.com/manojgudi) directing the work and testing it
+on a Jolla phone. It has not had an independent human code review yet.
+Bug reports and pull requests are welcome.
+
+## Requirements
+
+* **Sailfish OS 5.0 or newer** on aarch64 (current Jolla phones), armv7hl
+  (older 32-bit devices) or i486 (SDK emulator). Built with the 5.2 SDK and
+  tested on 5.2. The package refuses to install on older releases: it needs
+  glibc 2.34+ (Sailfish OS 4.x ships an older one) and the sailjail sandbox.
+* A Vikunja server, version 0.24 or newer (tested with 2.7.1), reachable over
+  HTTPS (plain HTTP only after an explicit warning).
+
+## Install
 
 1. On the phone, allow untrusted software: **Settings → Untrusted software**.
-2. Copy `harbour-vikunja-<version>.aarch64.rpm` to the phone (the Jolla C2 and
-   current Jolla phones are aarch64; use `armv7hl` for older 32-bit devices and
-   `i486` for the SDK emulator).
-3. Tap the file in the file manager, or over SSH:
-   `devel-su pkcon install-local harbour-vikunja-0.2.7-1.aarch64.rpm`
+2. Download the RPM for your phone from the
+   [Releases](https://github.com/manojgudi/vikunja_app/releases) page:
+   `aarch64` for current Jolla phones,
+   `armv7hl` for older 32-bit devices, `i486` for the SDK emulator. Not sure?
+   Run `uname -m` in the terminal.
+3. Tap the file in the file manager, or in the terminal:
+   `devel-su pkcon install-local harbour-vikunja-0.11.0-1.aarch64.rpm`
 4. Open **Vikunja**, enter your server address, username and password. If
    your account uses two-factor authentication, the app asks for the code next.
+
+Updating works the same way: install the newer RPM over the old one; you stay
+signed in.
 
 ## What it does
 

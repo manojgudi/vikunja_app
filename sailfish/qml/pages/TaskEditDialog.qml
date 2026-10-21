@@ -140,7 +140,7 @@ Dialog {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryHighlightColor
-                text: qsTr("Rich formatting in the description will be simplified when you save your changes.")
+                text: qsTr("Formatting will be simplified when you save.")
             }
 
             SectionHeader { text: qsTr("Dates") }

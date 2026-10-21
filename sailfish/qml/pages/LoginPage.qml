@@ -183,22 +183,22 @@ Page {
                 text: page.errorText
             }
 
-            Button {
-                id: signInButton
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: page.needTotp ? qsTr("Verify") : qsTr("Sign in")
-                enabled: !page.busy && serverField.text.length > 0 && userField.text.length > 0
-                         && passwordField.text.length > 0 && (!page.needTotp || totpField.text.length >= 6)
-                onClicked: page.signIn()
+            ButtonLayout {
+                Button {
+                    visible: page.needTotp
+                    text: qsTr("Back")
+                    enabled: !page.busy
+                    onClicked: page.backToPassword()
+                }
+                Button {
+                    id: signInButton
+                    text: page.needTotp ? qsTr("Verify") : qsTr("Sign in")
+                    enabled: !page.busy && serverField.text.length > 0 && userField.text.length > 0
+                             && passwordField.text.length > 0 && (!page.needTotp || totpField.text.length >= 6)
+                    onClicked: page.signIn()
+                }
             }
-
-            Button {
-                visible: page.needTotp
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Back")
-                enabled: !page.busy
-                onClicked: page.backToPassword()
-            }
+            Item { width: 1; height: Theme.paddingMedium }
 
             BusyIndicator {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -212,7 +212,7 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryHighlightColor
-                text: qsTr("Your password is only sent to your server. It is used once to create a revocable access token for this phone and then forgotten; the token appears in Vikunja under Settings → API Tokens. You stay signed in until you sign out or don't open the app for 30 days.")
+                text: qsTr("Your password goes only to your server, once, to create a token for this phone. You stay signed in until you sign out or skip the app for 30 days.")
             }
 
             Label {
@@ -222,7 +222,7 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: qsTr("Secure storage is turned off, so you will need to sign in again each time the app starts.")
+                text: qsTr("Secure storage is off: you'll sign in at every start.")
             }
         }
         VerticalScrollDecorator {}

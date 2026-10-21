@@ -9,7 +9,10 @@
 #include <QStringList>
 #include <QTimer>
 #include <QDir>
+#include <QScopedPointer>
 #include <QImage>
+#include <QQuickItem>
+#include <QQuickView>
 #include <cstdio>
 
 #include "alarms.h"
@@ -79,6 +82,7 @@ int main(int argc, char **argv)
     engine.rootContext()->setContextProperty(QStringLiteral("smokeQmlDir"), qmlDir);
     engine.rootContext()->setContextProperty(QStringLiteral("smokeUser"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_USER")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokePassword"), QString::fromLocal8Bit(qgetenv("VIKUNJA_TEST_PASSWORD")));
+    engine.rootContext()->setContextProperty(QStringLiteral("shotDir"), QString::fromLocal8Bit(qgetenv("SMOKE_SHOT_DIR")));
     engine.rootContext()->setContextProperty(QStringLiteral("smokePhase"), QString::fromLocal8Bit(qgetenv("SMOKE_PHASE")));
 
     // A photo in ~/Pictures, as the file picker would return it.
@@ -89,6 +93,19 @@ int main(int argc, char **argv)
     img.fill(Qt::blue);
     img.save(photo, "PNG");
     engine.rootContext()->setContextProperty(QStringLiteral("smokePhoto"), photo);
+
+    // Screenshots: the app's window shown in a real view, as main() does.
+    QScopedPointer<QQuickView> view;
+    if (qEnvironmentVariableIsSet("SMOKE_VIEW")) {
+        view.reset(new QQuickView(&engine, nullptr));
+        view->setResizeMode(QQuickView::SizeRootObjectToView);
+        view->resize(540, 1080);
+        view->setSource(QUrl::fromLocalFile(qmlDir + QStringLiteral("/harbour-vikunja.qml")));
+        view->show();
+        engine.rootContext()->setContextProperty(QStringLiteral("smokeRoot"), view->rootObject());
+    } else {
+        engine.rootContext()->setContextProperty(QStringLiteral("smokeRoot"), nullptr);
+    }
 
     QQmlComponent driver(&engine, QUrl::fromLocalFile(QString::fromLocal8Bit(qgetenv("SMOKE_DRIVER"))));
     QObject *obj = driver.create();

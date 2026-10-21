@@ -7,6 +7,14 @@
 This repo contains the Cross-Platform app for Vikunja, the fluffy, open-source, self-hostable to-do app.
 Vikunja helps you organize tasks, collaborate with teams, and view projects in multiple formats including list, Gantt, table, and Kanban views. Built with privacy in mind, Vikunja gives you complete control over your data whether you self-host or use Vikunja Cloud. Learn more at the [main Vikunja repository](https://github.com/go-vikunja/vikunja/).
 
+## Sailfish OS port (beta)
+
+This fork also contains a native Sailfish OS client in [`sailfish/`](sailfish/),
+written with Claude (Anthropic's AI model) and still in beta. See
+[`sailfish/README.md`](sailfish/README.md) for install steps, requirements
+(Sailfish OS 5.0+) and the disclaimer. RPMs are on the
+[Releases](https://github.com/manojgudi/vikunja_app/releases) page.
+
 ## Translations
 
 [Check out the docs](https://vikunja.io/docs/translations/) about how to contribute translations or add a new language for translation.

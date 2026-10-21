@@ -5,7 +5,7 @@
 #include <QHash>
 #include <QString>
 
-namespace Sailfish { namespace Secrets { class SecretManager; } }
+namespace Sailfish { namespace Secrets { class Request; class SecretManager; } }
 
 // Keeps credentials in an app-owned Sailfish Secrets collection
 // (encrypted storage plugin, unlocked with the device lock, owner-only
@@ -47,6 +47,8 @@ public:
     static QString privateDir();
 
 private:
+    void connectSecrets();
+    bool run(Sailfish::Secrets::Request &req);
     bool ensureCollection();
     void removeOldToken();
     bool secretsWrite(const QString &name, const QByteArray &data);
@@ -61,6 +63,8 @@ private:
     Backend m_backend = Memory;
     bool m_secretsReady = false;
     bool m_secretsFailed = false;
+    bool m_wantSecrets = false;
+    bool m_connecting = false;
     bool m_disabled = false;
     bool m_fileAllowed = false;
     bool m_consentNeeded = false;

@@ -37,7 +37,7 @@ QtObject {
     }
 
     property Timer settle: Timer {
-        interval: 4000
+        interval: 8000
         onTriggered: {
             if (smokePhase === "login" || smokePhase === "decline") {
                 driver.expectPage("LoginPage")

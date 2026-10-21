@@ -9,9 +9,11 @@
 #include <Secrets/storesecretrequest.h>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
 #include <QSaveFile>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QtGlobal>
@@ -35,6 +37,43 @@ QString describe(const Result &r)
 {
     return QStringLiteral("%1 (code %2)").arg(r.errorMessage()).arg(int(r.errorCode()));
 }
+
+// The daemon normally answers in milliseconds. Without a limit a stuck
+// daemon would freeze the app until D-Bus gives up, long enough for the
+// home screen to kill it.
+const int RequestTimeoutMs = 4000;
+}
+
+bool SecureStore::run(Request &req)
+{
+    if (!m_secretsReady && !m_connecting)
+        return false;
+    QElapsedTimer clock;
+    clock.start();
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    QObject::connect(&req, &Request::statusChanged, &loop, [&req, &loop]() {
+        if (req.status() == Request::Finished)
+            loop.quit();
+    });
+    req.startRequest();
+    if (req.status() != Request::Finished) {
+        timer.start(RequestTimeoutMs);
+        loop.exec(QEventLoop::ExcludeUserInputEvents);
+    }
+    if (req.status() != Request::Finished) {
+        // Give up on Secrets for the rest of this run.
+        m_lastError = QStringLiteral("secrets daemon did not answer within %1 ms").arg(RequestTimeoutMs);
+        qWarning("%s", qPrintable(m_lastError));
+        m_secretsReady = false;
+        m_secretsFailed = true;
+        return false;
+    }
+    if (clock.elapsed() > 1000)
+        qWarning("Sailfish Secrets took %lld ms", qint64(clock.elapsed()));
+    return true;
 }
 
 SecureStore::SecureStore() = default;
@@ -59,17 +98,33 @@ bool SecureStore::init()
         m_disabled = true;
         return false;
     }
-    if (!qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_FILE_STORE")) {
-        if (!m_manager)
-            m_manager = new SecretManager;
-        m_secretsReady = ensureCollection();
-        if (m_secretsReady)
+    // Connecting to Secrets waits for the daemon, so it happens on first
+    // use, after the window is up, not here.
+    m_wantSecrets = !qEnvironmentVariableIsSet("HARBOUR_VIKUNJA_FILE_STORE");
+    return true;
+}
+
+void SecureStore::connectSecrets()
+{
+    if (!m_wantSecrets)
+        return;
+    m_wantSecrets = false;
+    if (!m_manager)
+        m_manager = new SecretManager;
+    m_connecting = true;
+    m_secretsReady = ensureCollection();
+    m_connecting = false;
+    if (m_secretsReady) {
+        QSettings settings;
+        if (!settings.value(QStringLiteral("security/oldTokenRemoved")).toBool()) {
             removeOldToken();
+            settings.setValue(QStringLiteral("security/oldTokenRemoved"), true);
+        }
     }
-    m_backend = m_secretsReady ? Secrets : Memory;
+    if (m_backend == Memory && m_secretsReady)
+        m_backend = Secrets;
     if (!m_secretsReady)
         qWarning("Sailfish Secrets unavailable (%s)", qPrintable(m_lastError));
-    return true;
 }
 
 bool SecureStore::ensureCollection()
@@ -80,9 +135,9 @@ bool SecureStore::ensureCollection()
         // The daemon connection completes asynchronously, and right after
         // boot the daemon itself may still be starting.
         QEventLoop loop;
-        QTimer::singleShot(10000, &loop, &QEventLoop::quit);
+        QTimer::singleShot(RequestTimeoutMs, &loop, &QEventLoop::quit);
         QObject::connect(m_manager, &SecretManager::isInitializedChanged, &loop, &QEventLoop::quit);
-        loop.exec();
+        loop.exec(QEventLoop::ExcludeUserInputEvents);
     }
     if (!m_manager->isInitialized()) {
         m_lastError = QStringLiteral("secrets daemon not reachable");
@@ -98,8 +153,8 @@ bool SecureStore::ensureCollection()
     req.setStoragePluginName(SecretManager::DefaultEncryptedStoragePluginName);
     req.setEncryptionPluginName(SecretManager::DefaultEncryptedStoragePluginName);
     req.setAuthenticationPluginName(SecretManager::DefaultAuthenticationPluginName);
-    req.startRequest();
-    req.waitForFinished();
+    if (!run(req))
+        return false;
 
     const Result result = req.result();
     if (result.code() == Result::Succeeded || result.errorCode() == Result::CollectionAlreadyExistsError)
@@ -113,6 +168,7 @@ bool SecureStore::write(const QString &name, const QByteArray &data)
     m_memory.insert(name, data);
     if (m_disabled)
         return false;
+    connectSecrets();
 
     if (m_secretsReady) {
         bool found = false;
@@ -154,6 +210,7 @@ QByteArray SecureStore::read(const QString &name, bool *found)
     }
     if (m_disabled)
         return QByteArray();
+    connectSecrets();
 
     bool ok = false;
     QByteArray data;
@@ -186,6 +243,7 @@ void SecureStore::remove(const QString &name)
     m_memory.remove(name);
     if (m_disabled)
         return;
+    connectSecrets();
     if (m_secretsReady)
         secretsRemove(name);
     fileRemove(name);
@@ -209,8 +267,8 @@ void SecureStore::removeOldToken()
     req.setIdentifier(Secret::Identifier(QStringLiteral("api-token"), OldCollectionName,
                                          SecretManager::DefaultEncryptedStoragePluginName));
     req.setUserInteractionMode(SecretManager::PreventInteraction);
-    req.startRequest();
-    req.waitForFinished();
+    if (!run(req))
+        return;
 }
 
 bool SecureStore::secretsWrite(const QString &name, const QByteArray &data)
@@ -226,8 +284,8 @@ bool SecureStore::secretsWrite(const QString &name, const QByteArray &data)
     req.setSecretStorageType(StoreSecretRequest::CollectionSecret);
     req.setUserInteractionMode(SecretManager::PreventInteraction);
     req.setSecret(secret);
-    req.startRequest();
-    req.waitForFinished();
+    if (!run(req))
+        return false;
     if (req.result().code() != Result::Succeeded) {
         m_lastError = describe(req.result());
         return false;
@@ -242,8 +300,8 @@ QByteArray SecureStore::secretsRead(const QString &name, bool *found)
     req.setManager(m_manager);
     req.setIdentifier(identifierFor(name));
     req.setUserInteractionMode(SecretManager::PreventInteraction);
-    req.startRequest();
-    req.waitForFinished();
+    if (!run(req))
+        return QByteArray();
     if (req.result().code() != Result::Succeeded) {
         m_lastError = describe(req.result());
         return QByteArray();
@@ -258,8 +316,8 @@ void SecureStore::secretsRemove(const QString &name)
     req.setManager(m_manager);
     req.setIdentifier(identifierFor(name));
     req.setUserInteractionMode(SecretManager::PreventInteraction);
-    req.startRequest();
-    req.waitForFinished();
+    if (!run(req))
+        return;
 }
 
 // --- Private file fallback -----------------------------------------------------

@@ -29,12 +29,14 @@ Page {
                 // token can be locked until the phone is unlocked once.
                 if (!appBridge.background || api.sessionNotice === "inactive")
                     alarms.clear()
+                api.diag("startup: login page, background=" + appBridge.background + " notice=" + api.sessionNotice)
                 pageStack.replace(Qt.resolvedUrl("LoginPage.qml"), {}, PageStackAction.Immediate)
                 return
             }
             if (!appBridge.background)
                 api.touchSession()
             app.loadUser(function(r) {
+                api.diag("startup: user loaded ok=" + r.ok + " status=" + r.status + " authenticated=" + api.authenticated)
                 if (!api.authenticated)
                     return // token rejected; the app already went back to the login page
                 if (!r.ok && r.errorCode !== "http") {

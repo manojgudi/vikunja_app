@@ -155,6 +155,7 @@ ApplicationWindow {
         if (leavingLogin)
             return
         leavingLogin = true
+        api.diag("login page showing with a session; going home")
         loadUser(function(r) {
             leavingLogin = false
             var page = pageStack.currentPage
@@ -167,6 +168,7 @@ ApplicationWindow {
     }
 
     function signedOut() {
+        api.diag("signed out, showing login page")
         currentUser = null
         projects = []
         labels = []
@@ -178,6 +180,7 @@ ApplicationWindow {
     Connections {
         target: api
         onSessionExpired: {
+            api.diag("session expired: server answered 401, signing out")
             app.notify(qsTr("Your session has expired or the token was revoked. Please sign in again."))
             api.logout()
             app.signedOut()
@@ -187,6 +190,8 @@ ApplicationWindow {
     Connections {
         target: appBridge
         onActivateRequested: app.activate()
+        onShowRequested: api.diag("window shown: page=" + String(pageStack.currentPage).split("(")[0]
+                                  + " authenticated=" + api.authenticated)
         onOpenTaskRequested: {
             app.activate()
             if (api.authenticated)

@@ -5,6 +5,7 @@
 #include <QQmlNetworkAccessManagerFactory>
 #include <QQuickView>
 #include <QScopedPointer>
+#include <QFileInfo>
 #include <QSettings>
 #include <QTimer>
 
@@ -15,6 +16,7 @@
 
 #include "alarms.h"
 #include "apiclient.h"
+#include "appsettings.h"
 #include "attachmentimages.h"
 #include "appbridge.h"
 #include "redact.h"
@@ -48,6 +50,18 @@ int main(int argc, char *argv[])
     app->setOrganizationName(QStringLiteral("io.github.manojgudi"));
     app->setApplicationName(QStringLiteral("harbour-vikunja"));
     app->setApplicationVersion(QStringLiteral(APP_VERSION));
+
+    // Processes started by D-Bus activation may lack XDG_RUNTIME_DIR, and
+    // Sailfish Secrets finds its daemon socket through it.
+    if (qgetenv("XDG_RUNTIME_DIR").isEmpty()) {
+        const QByteArray runtime = "/run/user/" + QByteArray::number(uint(getuid()));
+        if (QFileInfo(QString::fromLatin1(runtime)).isDir())
+            qputenv("XDG_RUNTIME_DIR", runtime);
+    }
+    AppSettings::diag(QStringLiteral("start: args=%1 XDG_RUNTIME_DIR=%2 DBUS_SESSION_BUS_ADDRESS set=%3")
+                      .arg(app->arguments().mid(1).join(QLatin1Char(' ')))
+                      .arg(QString::fromLocal8Bit(qgetenv("XDG_RUNTIME_DIR")))
+                      .arg(!qgetenv("DBUS_SESSION_BUS_ADDRESS").isEmpty()));
 
     SecureStore store;
     store.init();

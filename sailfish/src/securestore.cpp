@@ -124,8 +124,7 @@ void SecureStore::connectSecrets()
     }
     if (m_backend == Memory && m_secretsReady)
         m_backend = Secrets;
-    if (!m_secretsReady)
-        qWarning("Sailfish Secrets unavailable (%s)", qPrintable(m_lastError));
+    AppSettings::diag(QStringLiteral("secrets: ready=%1 %2").arg(m_secretsReady).arg(m_lastError));
 }
 
 bool SecureStore::ensureCollection()

@@ -27,7 +27,7 @@ static void handler(QtMsgType type, const QMessageLogContext &, const QString &m
     if (msg.startsWith(QLatin1String("SMOKE:")))
         return;
     // No Secrets daemon in the build engine; the store falls back by design.
-    if (msg.contains(QLatin1String("secrets daemon")))
+    if (msg.contains(QLatin1String("secrets daemon")) || msg.startsWith(QLatin1String("vikunja-session:")))
         return;
     if (type != QtDebugMsg && type != QtInfoMsg
             && (msg.contains(QLatin1String(".qml")) || msg.contains(QLatin1String(".js"))

@@ -1,4 +1,5 @@
 #include "appbridge.h"
+#include "appsettings.h"
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
@@ -86,6 +87,7 @@ void AppBridge::quitIfIdle()
 
 void AppBridge::activate()
 {
+    AppSettings::diag(QStringLiteral("dbus: activate, background=%1").arg(m_background));
     setBackground(false);
     emit showRequested();
     emit activateRequested();
@@ -93,6 +95,7 @@ void AppBridge::activate()
 
 void AppBridge::openTask(int taskId)
 {
+    AppSettings::diag(QStringLiteral("dbus: openTask %1, background=%2").arg(taskId).arg(m_background));
     // Opening a task only shows it, so any caller may do that.
     setBackground(false);
     emit showRequested();
@@ -111,6 +114,7 @@ void AppBridge::reminderDue(const QString &kind, int taskId, qlonglong time)
                                        QStringLiteral("sync"), QStringLiteral("test") };
     if (taskId < 0 || !kinds.contains(kind))
         return;
+    AppSettings::diag(QStringLiteral("dbus: reminderDue %1 %2").arg(kind).arg(taskId));
     ++m_pendingWork;
     emit reminderRequested(taskId, kind, double(time) * 1000.0);
 }

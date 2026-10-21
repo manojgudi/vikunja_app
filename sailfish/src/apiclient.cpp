@@ -528,12 +528,19 @@ bool ApiClient::restoreSession()
     if (!m_token.isEmpty())
         return true;
     const QString server = m_settings.value(QStringLiteral("session/server")).toString();
-    if (server.isEmpty() || !m_store)
+    if (server.isEmpty() || !m_store) {
+        AppSettings::diag(QStringLiteral("restore: no saved session in %1 (%2 keys)")
+                          .arg(m_settings.fileName()).arg(m_settings.allKeys().size()));
         return false;
+    }
     bool found = false;
     QByteArray token = m_store->read(QLatin1String(TokenSecret), &found);
-    if (!found || token.isEmpty())
+    if (!found || token.isEmpty()) {
+        AppSettings::diag(QStringLiteral("restore: token not found; storage=%1 secretsWorking=%2 fileAllowed=%3 lastError=%4")
+                          .arg(tokenStorage()).arg(m_store->secretsWorking()).arg(m_store->fileAllowed())
+                          .arg(m_store->lastError()));
         return false;
+    }
 
     // A session ends after InactivityDays without the app being opened, or
     // when the token itself expires. The token is then wiped from the phone.
@@ -546,6 +553,7 @@ bool ApiClient::restoreSession()
     const QDateTime expires = QDateTime::fromString(m_settings.value(QStringLiteral("session/tokenExpires")).toString(), Qt::ISODate);
     if (lastUsed.daysTo(now) > InactivityDays || (expires.isValid() && expires <= now)) {
         token.fill('\0');
+        AppSettings::diag(QStringLiteral("restore: expired (last used %1)").arg(lastUsed.toString(Qt::ISODate)));
         logout();
         m_sessionNotice = QStringLiteral("inactive");
         emit sessionChanged();
@@ -556,6 +564,7 @@ bool ApiClient::restoreSession()
     m_serverVersion = m_settings.value(QStringLiteral("session/version")).toString();
     m_authMethod = m_settings.value(QStringLiteral("session/authMethod")).toString();
     m_tokenExpires = m_settings.value(QStringLiteral("session/tokenExpires")).toString();
+    AppSettings::diag(QStringLiteral("restore: ok, storage=%1").arg(tokenStorage()));
     emit sessionChanged();
     return true;
 }

@@ -7,6 +7,8 @@
 #include <QObject>
 #include <QPointer>
 #include <QSettings>
+
+#include "appsettings.h"
 #include <QUrl>
 #include <QVariant>
 #include <functional>
@@ -109,6 +111,8 @@ public:
     Q_INVOKABLE void uploadAttachment(int taskId, const QString &filePath, const QJSValue &callback);
     // Called while the user has the app open; keeps the session alive.
     Q_INVOKABLE void touchSession();
+    // One line for the session diagnostics log (no secrets).
+    Q_INVOKABLE void diag(const QString &message) { AppSettings::diag(message); }
 
     Q_INVOKABLE void trustCertificate(const QString &host, int port, const QString &sha256);
     Q_INVOKABLE QVariantList trustedCertificates();

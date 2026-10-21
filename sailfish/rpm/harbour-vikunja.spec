@@ -1,6 +1,6 @@
 Name:       harbour-vikunja
 Summary:    Vikunja client for Sailfish OS
-Version:    0.2.5
+Version:    0.2.6
 Release:    1
 License:    MIT
 URL:        https://github.com/manojgudi/vikunja_app
@@ -42,6 +42,11 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.6-1
+- Session diagnostics log (~/.cache/io.github.manojgudi/harbour-vikunja/session.log,
+  no tokens or task data) to trace starts from reminders.
+- Set XDG_RUNTIME_DIR when D-Bus activation leaves it out, so Sailfish
+  Secrets can be reached from a reminder start.
 * Wed Oct 21 2026 Vikunja Sailfish port <noreply@anthropic.com> - 0.2.5-1
 - Opening the app from a reminder no longer shows the login page: the
   session is restored before QML and D-Bus calls run, and the login page
